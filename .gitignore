@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+
+# build
+.next/
+dist/
+build/
+
+# env
+.env
+.env.local
+
+# logs
+logs
+*.log
+
+# OS
+.DS_Store
+
+# postgres backup
+*.sql
+*.dump
+
+# IDE
+.vscode/
