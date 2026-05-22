@@ -8,9 +8,13 @@ import useContractDownload from '@/lib/useContractDownload'
 import ContractHeader from '@/components/contracts/ContractHeader'
 import ContractSidebar from '@/components/contracts/ContractSidebar'
 import ContractForm from '@/components/contracts/ContractForm'
+import ContractEditSidebar from '@/components/contracts/ContractEditSidebar'
 import ContractA4Document from '@/components/contracts/ContractA4Document'
 import RatingModal from '@/components/contracts/RatingModal'
 import CloseContractModal from '@/components/contracts/CloseContractModal'
+import CancelContractModal from '@/components/contracts/CancelContractModal'
+import SignOtpModal from '@/components/contracts/SignOtpModal'
+import AlertModal from '@/components/ui/AlertModal'
 
 const ZOOM_LEVELS = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
 
@@ -44,6 +48,21 @@ export default function ContractDetailPage() {
   const [contractRatings, setContractRatings] = useState([])
   const [error,           setError]           = useState(null)
   const [success,         setSuccess]         = useState(null)
+  const [editLogRefresh,  setEditLogRefresh]  = useState(0)
+  const [sidebarTab,      setSidebarTab]      = useState('participants')
+
+  // ── Sign OTP flow state ───────────────────────────
+  // AcceptModal → request-otp → SignOtpModal → verify+sign
+  const [signOtpModalOpen, setSignOtpModalOpen] = useState(false)
+  const [pendingSignature, setPendingSignature] = useState(null)
+  const [otpRequesting,    setOtpRequesting]    = useState(false)
+  const [otpVerifying,     setOtpVerifying]     = useState(false)
+  const [otpEmailMasked,   setOtpEmailMasked]   = useState(null)
+  const [otpError,         setOtpError]         = useState(null)
+
+  // ── Cancel modal state ───────────────────────────
+  const [cancelModalOpen, setCancelModalOpen] = useState(false)
+  const [cancelling,      setCancelling]      = useState(false)
 
   useEffect(() => { restoreAuth() }, [restoreAuth])
 
@@ -77,7 +96,10 @@ export default function ContractDetailPage() {
       .catch(() => {})
   }, [])
 
-  // ── Гарын үсэг зурах ──────────────────────────────
+  // ── Гарын үсэг зурах (1-р алхам: OTP хүсэлт) ──────
+  // Хэрэглэгчийн нэвтэрсэн имэйл рүү OTP илгээх хүсэлт явуулна.
+  // Амжилттай үед signature_blob-ыг pendingSignature-д хадгалж SignOtpModal-ийг нээнэ.
+  // Реал signing нь handleVerifyOtpAndSign-д OTP оруулсны дараа явагдана.
   const handleSign = async (blob, type = 'DRAW') => {
     if (!contract) return
     const role      = contract.creator_role || 'seller'
@@ -87,41 +109,117 @@ export default function ContractDetailPage() {
       : (role === 'seller' ? 'buyer' : 'seller')
     const placeholder_key = `${myRoleKey}.signature`
 
-    setSigning(true)
+    setOtpRequesting(true)
     setError(null)
+    setOtpError(null)
     try {
-      await api.post(`/contracts/${id}/sign`, { signature_blob: blob, placeholder_key })
+      const res = await api.post(`/contracts/${id}/sign/request-otp`)
+      setOtpEmailMasked(res.data?.email_masked || null)
+      setPendingSignature({ blob, type, placeholder_key })
+      setSignOtpModalOpen(true)
+    } catch (err) {
+      setError(err.response?.data?.message || 'OTP илгээхэд алдаа гарлаа')
+    } finally {
+      setOtpRequesting(false)
+    }
+  }
+
+  // ── 2-р алхам: OTP дахин илгээх ───────────────────
+  // SignOtpModal-ийн Resend товч ашиглана. Backend нь 15 минутад 5 удаа хүртэл.
+  const handleResendSignOtp = async () => {
+    setOtpError(null)
+    try {
+      const res = await api.post(`/contracts/${id}/sign/request-otp`)
+      setOtpEmailMasked(res.data?.email_masked || null)
+      return true
+    } catch (err) {
+      setOtpError(err.response?.data?.message || 'OTP дахин илгээхэд алдаа гарлаа')
+      return false
+    }
+  }
+
+  // ── 3-р алхам: OTP оруулж гарын үсэг зурах ────────
+  // Амжилттай үед signature_blob-ыг user_signatures-д хадгална
+  // (хуучин flow-ын адил — анх удаа зурахад автоматаар default болгоно).
+  const handleVerifyOtpAndSign = async (otpCode) => {
+    if (!pendingSignature) return
+    setOtpVerifying(true)
+    setOtpError(null)
+    try {
+      await api.post(`/contracts/${id}/sign`, {
+        signature_blob:  pendingSignature.blob,
+        placeholder_key: pendingSignature.placeholder_key,
+        otp_code:        otpCode,
+      })
 
       if (!savedSignature) {
         try {
           const res = await api.post('/users/signatures', {
-            signature_blob: blob, signature_type: type || 'DRAW', is_default: true,
+            signature_blob: pendingSignature.blob,
+            signature_type: pendingSignature.type || 'DRAW',
+            is_default:     true,
           })
           const saved = res.data.data || res.data
           setSavedSignature({
             ...(saved || {}),
-            signature_blob: blob,
-            signature_type: type || 'DRAW',
+            signature_blob: pendingSignature.blob,
+            signature_type: pendingSignature.type || 'DRAW',
             is_default:     true,
           })
         } catch (_) { /* main flow OK */ }
       }
 
       setSuccess('Гарын үсэг зурагдлаа')
+      setSignOtpModalOpen(false)
+      setPendingSignature(null)
       await fetchContract()
     } catch (err) {
-      setError(err.response?.data?.message || 'Гарын үсэг зурахад алдаа гарлаа')
+      // OTP алдаа modal дотор харагдана; гэрээний түвшний алдаа дээд banner-т гарна
+      const msg = err.response?.data?.message || 'OTP буруу эсвэл хугацаа дууссан'
+      setOtpError(msg)
     } finally {
-      setSigning(false)
+      setOtpVerifying(false)
+    }
+  }
+
+  const handleCloseSignOtpModal = () => {
+    if (otpVerifying) return
+    setSignOtpModalOpen(false)
+    setPendingSignature(null)
+    setOtpError(null)
+  }
+
+  // ── Гэрээг цуцлах ──────────────────────────────────
+  const handleCancelContract = async ({ reason }) => {
+    setCancelling(true)
+    setError(null)
+    try {
+      await api.post(`/contracts/${id}/cancel`, reason ? { reason } : {})
+      setSuccess('Гэрээ цуцлагдлаа')
+      setCancelModalOpen(false)
+      await fetchContract()
+    } catch (err) {
+      // 409 = race condition (нөгөө тал зэрэгцээ зурсан) — modal дотор үлдээнэ
+      setError(err.response?.data?.message || 'Цуцлахад алдаа гарлаа')
+      setCancelModalOpen(false)
+    } finally {
+      setCancelling(false)
     }
   }
 
   const handleSend = async (email) => {
+    // Өөрийн имэйл рүү гэрээ илгээхээс сэргийлэх
+    const trimmed = (email || '').trim()
+    if (user?.email && trimmed.toLowerCase() === user.email.toLowerCase()) {
+      setError('Өөрийн имэйл рүү гэрээ илгээх боломжгүй')
+      throw new Error('self-invite blocked')
+    }
+
     setSending(true)
     setError(null)
     try {
       await api.post(`/contracts/${id}/send`, {
-        participants: [{ role: 'COUNTERPARTY', email }],
+        participants: [{ role: 'COUNTERPARTY', email: trimmed }],
       })
       setSuccess('Гэрээ амжилттай илгээгдлээ')
       await fetchContract()
@@ -210,6 +308,7 @@ export default function ContractDetailPage() {
 
   // Save = зөвхөн хадгална (өөрчлөлт DB-д үлдэнэ, нөгөө тал руу автоматаар явахгүй).
   // Илгээх нь тусдаа товчоор (BottomAction-ийн "Илгээх") хийгдэнэ.
+  // ContractForm (legacy)-аас дуудагдахад editing-аас гарна.
   const handleEditSubmit = async (formData) => {
     if (!contract) return
     setSubmittingEdit(true)
@@ -221,6 +320,25 @@ export default function ContractDetailPage() {
       await fetchContract()
     } catch (err) {
       setError(err.response?.data?.message || 'Хадгалахад алдаа гарлаа')
+    } finally {
+      setSubmittingEdit(false)
+    }
+  }
+
+  // ContractEditSidebar-ийн Save handler — editing mode-д үлдэнэ
+  // mode дотроо EDIT → SEND болж шилжинэ
+  const handleSidebarSave = async (formData) => {
+    if (!contract) return
+    setSubmittingEdit(true)
+    setError(null)
+    try {
+      await api.patch(`/contracts/${id}`, { filled_data_json: formData })
+      setSuccess('Засвар хадгалагдлаа')
+      setEditLogRefresh(k => k + 1)
+      await fetchContract()
+    } catch (err) {
+      setError(err.response?.data?.message || 'Хадгалахад алдаа гарлаа')
+      throw err
     } finally {
       setSubmittingEdit(false)
     }
@@ -239,7 +357,6 @@ export default function ContractDetailPage() {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       setSuccess('Хавсралт амжилттай нэмэгдлээ')
-      setTimeout(() => setSuccess(null), 3000)
       await fetchContract()
     } catch (err) {
       setError(err.response?.data?.message || 'Хавсралт нэмэхэд алдаа гарлаа')
@@ -254,7 +371,6 @@ export default function ContractDetailPage() {
     try {
       await api.delete(`/contracts/${id}/attachments/${attachmentId}`)
       setSuccess('Хавсралт устгагдлаа')
-      setTimeout(() => setSuccess(null), 3000)
       await fetchContract()
     } catch (err) {
       setError(err.response?.data?.message || 'Устгахад алдаа гарлаа')
@@ -262,15 +378,19 @@ export default function ContractDetailPage() {
   }
 
   // Илгээх SENT myTurn үед — нөгөө талд буцаах (POST /return)
-  const handleReturn = async () => {
+  // note: optional negotiation comment
+  const handleReturn = async (note = null) => {
     setSending(true)
     setError(null)
     try {
-      await api.post(`/contracts/${id}/return`, {})
-      setSuccess('Гэрээ нөгөө талд илгээгдлээ')
+      await api.post(`/contracts/${id}/return`, note ? { note } : {})
+      setSuccess(note ? 'Тайлбар илгээгдлээ' : 'Гэрээ нөгөө талд илгээгдлээ')
+      setEditing(false)
+      setEditLogRefresh(k => k + 1)
       await fetchContract()
     } catch (err) {
       setError(err.response?.data?.message || 'Илгээхэд алдаа гарлаа')
+      throw err
     } finally {
       setSending(false)
     }
@@ -369,9 +489,109 @@ export default function ContractDetailPage() {
   const myTurn          = contract.current_turn === contract.my_role
   const canEditTop      = (contract.status === 'DRAFT' && isCreator) ||
                           (contract.status === 'SENT'  && myTurn)
+  // Цуцлах нөхцөл — DRAFT/SENT үед оролцогч аль ч талын хэрэглэгч.
+  // FULLY_SIGNED/COMPLETED/CLOSED-д button нуугдана (backend ч мөн block хийнэ).
+  const canCancelContract = !editing && ['DRAFT', 'SENT'].includes(contract.status)
 
-  // ── Edit mode: form харуулна ─────────────────────
+  // ── Edit mode: SENT үед side-by-side (preview + EditSidebar), DRAFT үед full-page ──
   if (editing && template) {
+    // SENT (negotiation) — side-by-side layout
+    if (contract.status === 'SENT') {
+      return (
+        <div className="h-screen flex bg-gray-50 overflow-hidden">
+          {/* ── Center: header + live preview ── */}
+          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+            <ContractHeader
+              contract={contract}
+              onEdit={() => {}}
+              onPdf={downloadPdf}
+              onDocx={downloadDocx}
+              onPrint={print}
+              downloadBusy={downloadBusy}
+              canEdit={false}
+            />
+            {error && (
+              <div className="px-6 pt-4 shrink-0">
+                <p className="text-sm text-red-700 bg-red-50 border border-red-200
+                              rounded-lg px-3 py-2 m-0">{error}</p>
+              </div>
+            )}
+            <div className="flex-1 relative overflow-hidden">
+              <div
+                ref={scrollRef}
+                className="absolute inset-0 overflow-auto bg-gray-300/70 px-16 py-12"
+              >
+                <div ref={contentRef}>
+                  <ContractA4Document
+                    htmlContent={renderedContent}
+                    qrCodeUrl={contract.latest_version?.qr_code_url || null}
+                    contractNumber={contract.contract_number}
+                    attachments={contract.attachments || []}
+                    zoom={zoom}
+                    onPageCountChange={setPageCount}
+                  />
+                </div>
+              </div>
+              <div className="absolute top-4 left-6 px-2.5 py-1
+                              bg-white/85 backdrop-blur-sm rounded-md
+                              text-xs text-gray-600 font-medium
+                              border border-gray-200 shadow-sm
+                              pointer-events-none select-none">
+                Хуудас: {currentPage}
+              </div>
+              <div className="absolute bottom-6 right-6 flex items-stretch
+                              bg-white border border-gray-200 rounded-xl shadow-lg
+                              divide-x divide-gray-100 overflow-hidden">
+                <button onClick={zoomOut} disabled={zoom <= ZOOM_LEVELS[0]}
+                        className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-0 bg-white
+                                   disabled:opacity-40 disabled:cursor-not-allowed text-gray-700"
+                        title="Бууруулах">
+                  <MdRemove size={16} />
+                </button>
+                <div className="px-3 py-2 text-sm font-semibold text-gray-900 min-w-14
+                                text-center select-none flex items-center justify-center">
+                  {Math.round(zoom * 100)}%
+                </div>
+                <button onClick={zoomIn} disabled={zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
+                        className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-0 bg-white
+                                   disabled:opacity-40 disabled:cursor-not-allowed text-gray-700"
+                        title="Томруулах">
+                  <MdAdd size={16} />
+                </button>
+                <button onClick={fitToScreen}
+                        className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-0 bg-white
+                                   text-gray-700" title="Дэлгэцэнд тааруулах">
+                  <MdFitScreen size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Right: ContractEditSidebar ── */}
+          <aside className="w-104 shrink-0 h-full border-l border-gray-200 print:hidden">
+            <ContractEditSidebar
+              contract={contract}
+              template={template}
+              user={user}
+              onSave={handleSidebarSave}
+              onSend={handleReturn}
+              onCancel={() => setEditing(false)}
+              saving={submittingEdit}
+              sending={sending}
+              refreshLogKey={editLogRefresh}
+            />
+          </aside>
+
+          <AlertModal
+            open={!!success}
+            message={success}
+            onClose={() => setSuccess(null)}
+          />
+        </div>
+      )
+    }
+
+    // DRAFT — full-page legacy form (creator анх удаа бөглөж байна)
     return (
       <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
         <ContractHeader
@@ -399,12 +619,6 @@ export default function ContractDetailPage() {
               <p className="text-sm text-gray-500 mt-1 m-0">
                 №{contract.contract_number} • {contract.title}
               </p>
-              {contract.status === 'SENT' && (
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200
-                              rounded-lg px-3 py-2 mt-3 m-0">
-                  ⚠ Засварласны дараа гэрээ нөгөө талд буцаан илгээгдэнэ
-                </p>
-              )}
             </div>
 
             <ContractForm
@@ -415,12 +629,18 @@ export default function ContractDetailPage() {
               user={user}
               submitting={submittingEdit}
               error={error}
-              submitLabel={contract.status === 'DRAFT' ? 'Хадгалах' : 'Хадгалаад буцаах'}
+              submitLabel="Хадгалах"
               onSubmit={handleEditSubmit}
               onCancel={() => setEditing(false)}
             />
           </div>
         </div>
+
+        <AlertModal
+          open={!!success}
+          message={success}
+          onClose={() => setSuccess(null)}
+        />
       </div>
     )
   }
@@ -447,27 +667,22 @@ export default function ContractDetailPage() {
           onDocx={downloadDocx}
           onPrint={print}
           onRate={() => setRatingModalOpen(true)}
+          onHistory={() => setSidebarTab('history')}
+          onCancel={() => setCancelModalOpen(true)}
           downloadBusy={downloadBusy}
           canEdit={canEditTop}
           canRate={contract.status === 'CLOSED' && !!ratedTarget}
           hasRated={!!myRating}
+          canCancel={canCancelContract}
         />
 
-        {/* Error/success banner */}
-        {(error || success) && (
+        {/* Error banner (success нь AlertModal-аар гарна) */}
+        {error && (
           <div className="px-6 pt-4 shrink-0">
-            {success && (
-              <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200
-                            rounded-lg px-3 py-2 m-0">
-                {success}
-              </p>
-            )}
-            {error && !success && (
-              <p className="text-sm text-red-700 bg-red-50 border border-red-200
-                            rounded-lg px-3 py-2 m-0">
-                {error}
-              </p>
-            )}
+            <p className="text-sm text-red-700 bg-red-50 border border-red-200
+                          rounded-lg px-3 py-2 m-0">
+              {error}
+            </p>
           </div>
         )}
 
@@ -566,10 +781,13 @@ export default function ContractDetailPage() {
           onUploadAttachment={handleUploadAttachment}
           onDeleteAttachment={handleDeleteAttachment}
           uploadingAttachment={uploadingAttachment}
-          signing={signing}
+          signing={signing || otpRequesting || otpVerifying}
           sending={sending}
           confirming={confirming}
           closing={closing}
+          tab={sidebarTab}
+          onTabChange={setSidebarTab}
+          refreshLogKey={editLogRefresh}
         />
       </aside>
 
@@ -592,6 +810,31 @@ export default function ContractDetailPage() {
         } : null}
         existingRating={myRating}
         submitting={ratingSubmitting}
+      />
+
+      <CancelContractModal
+        open={cancelModalOpen}
+        contractTitle={contract.title}
+        onClose={() => setCancelModalOpen(false)}
+        onConfirm={handleCancelContract}
+        submitting={cancelling}
+      />
+
+      <SignOtpModal
+        open={signOtpModalOpen}
+        emailMasked={otpEmailMasked}
+        onVerify={handleVerifyOtpAndSign}
+        onResend={handleResendSignOtp}
+        onClose={handleCloseSignOtpModal}
+        verifying={otpVerifying}
+        error={otpError}
+      />
+
+      {/* Амжилттай үйлдлийн modal — setSuccess(...) дуудагдах болгонд гарна */}
+      <AlertModal
+        open={!!success}
+        message={success}
+        onClose={() => setSuccess(null)}
       />
     </div>
   )

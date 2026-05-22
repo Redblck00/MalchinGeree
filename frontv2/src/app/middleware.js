@@ -16,8 +16,10 @@ export function middleware(request) {
   const { pathname } = request.nextUrl
   const token = request.cookies.get('token')?.value
 
-  // /invite/* — урилгын линк PUBLIC (нэвтэрсэн ч, эс нэвтэрсэн ч орох)
-  if (pathname.startsWith('/invite/')) {
+  // /invite — урилгын линк PUBLIC (нэвтэрсэн ч, эс нэвтэрсэн ч орох).
+  // Token нь URL fragment-д (#token=...) ирдэг — fragment server-д явдаггүй
+  // тул pathname зөвхөн "/invite" гэж ирнэ.
+  if (pathname === '/invite' || pathname.startsWith('/invite/')) {
     return NextResponse.next()
   }
 

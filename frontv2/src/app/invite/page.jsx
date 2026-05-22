@@ -1,21 +1,40 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 
-// Имэйлээр ирсэн линк: /invite/<token>
-// 1. Token шалгана  → { contract_id, participant_email, has_user_account }
-// 2. Нэвтэрсэн → шууд гэрээний хуудсанд
-// 3. Эс нэвтэрсэн + бүртгэлтэй → /login (email pre-fill, redirect)
-// 4. Эс нэвтэрсэн + бүртгэлгүй → /register (email pre-fill, redirect)
+// Имэйлээр ирсэн линк: /invite#token=<token>
+// Token-г URL fragment-д тавьсан тул server лог / Referer header / OG link
+// preview-д token leak хийгдэхгүй (fragment нь client-only).
+//
+// Урсгал:
+//   1. window.location.hash-аас token уншина (client only)
+//   2. Backend POST /api/contracts/invite/:token/verify
+//      → { contract_id, participant_email, has_user_account }
+//   3. Нэвтэрсэн → шууд гэрээний хуудсанд
+//   4. Эс нэвтэрсэн + бүртгэлтэй → /login (email pre-fill, redirect)
+//   5. Эс нэвтэрсэн + бүртгэлгүй → /register (email pre-fill, redirect)
 export default function InviteVerifyPage() {
-  const params  = useParams()
-  const router  = useRouter()
-  const token   = params.token
+  const router = useRouter()
 
+  const [token,   setToken]   = useState(null)
   const [error,   setError]   = useState(null)
   const [working, setWorking] = useState(true)
 
+  // 1) URL fragment-аас token уншина (зөвхөн client дээр).
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const hash = window.location.hash || ''
+    const t = new URLSearchParams(hash.slice(1)).get('token')
+    if (!t) {
+      setError('Урилгын линк буруу байна')
+      setWorking(false)
+      return
+    }
+    setToken(t)
+  }, [])
+
+  // 2) Token бэлэн болсны дараа verify хийнэ.
   useEffect(() => {
     if (!token) return
 

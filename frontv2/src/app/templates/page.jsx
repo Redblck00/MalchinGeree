@@ -133,7 +133,7 @@ export default function PublicTemplatesPage() {
 // ── A4-shaped card (aspect ratio 210:297 ≈ 1:1.414) ─────
 function TemplateCard({ template, onPreview, onUse }) {
   return (
-    <div className="bg-white border border-[#3d3a8c]/40 rounded-xl p-6
+    <div className="bg-white border border-[#3d3a8c]/40 rounded-sm p-6
                     flex flex-col transition-all
                     hover:shadow-lg hover:border-[#3d3a8c]
                     aspect-210/297">

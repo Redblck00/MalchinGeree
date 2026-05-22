@@ -188,7 +188,7 @@ function ZoomedPage({ zoom, children }) {
     </div>
   )
 }
-// ── Нэг A4 хуудас (өөрийн HTML chunk-тэй) ──────────────
+
 function PageView({
   pageIndex,
   pageCount,
@@ -201,7 +201,7 @@ function PageView({
 
   return (
     <div
-      className="contract-page bg-white shadow-lg rounded-sm relative"
+      className="contract-page bg-white   relative"
       data-page-num={pageIndex + 1}
       style={{
         width:  `${PAGE_WIDTH_MM}mm`,
@@ -290,16 +290,36 @@ function AttachmentPageView({
             }}
           />
         ) : isPdf ? (
-          <iframe
-            src={attachment.file_url}
-            title={attachment.file_name}
-            style={{
-              width: '100%',
-              height: '100%',
-              border: '1px solid #e5e7eb',
-              borderRadius: '4px',
-            }}
-          />
+          <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+            <iframe
+              src={`${attachment.file_url}#view=FitH&toolbar=1`}
+              title={attachment.file_name}
+              style={{
+                width: '100%',
+                height: '100%',
+                border: '1px solid #e5e7eb',
+                borderRadius: '4px',
+              }}
+            />
+            <a
+              href={attachment.file_url}
+              target="_blank"
+              rel="noopener"
+              className="no-underline"
+              style={{
+                position: 'absolute',
+                bottom: 8,
+                right: 8,
+                padding: '4px 10px',
+                background: 'rgba(61,58,140,0.95)',
+                color: 'white',
+                fontSize: 11,
+                borderRadius: 6,
+              }}
+            >
+              Шинэ цонхонд нээх
+            </a>
+          </div>
         ) : (
           <div className="flex flex-col items-center gap-3 text-center">
             <div className="w-20 h-20 rounded-xl bg-gray-100 flex items-center justify-center">

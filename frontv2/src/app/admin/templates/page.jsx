@@ -1,5 +1,23 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import {
+  MdSearch,
+  MdShortText,
+  MdNumbers,
+  MdCalendarToday,
+  MdNotes,
+  MdArrowDropDownCircle,
+  MdDraw,
+  MdRepeat,
+  MdExpandMore,
+  MdExpandLess,
+  MdAdd,
+  MdClose,
+  MdVisibility,
+  MdEdit,
+  MdAutoAwesome,
+  MdDragIndicator,
+} from 'react-icons/md'
 import api from '@/lib/api'
 import CONTRACT_FIELDS, { buildSchemaJson } from '@/lib/contractFields'
 import { renderChips } from '@/lib/templateRender'
@@ -7,46 +25,136 @@ import TemplatePreview from '@/components/templates/TemplatePreview'
 
 // ── Field-ийн өнгө ────────────────────────────────────
 const FIELD_COLORS = {
-  default:   { bg: '#EEEDFE', border: '#AFA9EC', text: '#3C3489' },
-  teal:      { bg: '#E1F5EE', border: '#5DCAA5', text: '#085041' },
-  green:     { bg: '#E1F5EE', border: '#1D9E75', text: '#04342C' },
-  signature: { bg: '#EAF3DE', border: '#97C459', text: '#173404' },
+  default:   { bg: '#EEEDFE', border: '#AFA9EC', text: '#3C3489', dot: '#7166D9' },
+  teal:      { bg: '#E1F5EE', border: '#5DCAA5', text: '#085041', dot: '#1D9E75' },
+  green:     { bg: '#E1F5EE', border: '#1D9E75', text: '#04342C', dot: '#1D9E75' },
+  signature: { bg: '#EAF3DE', border: '#97C459', text: '#173404', dot: '#5A8A2A' },
+  auto:      { bg: '#FFF8E1', border: '#FFD54F', text: '#7B5E00', dot: '#C39B00' },
 }
 
 const getColor = (field) => {
+  if (!field) return FIELD_COLORS.default
   if (field.type === 'signature') return FIELD_COLORS.signature
   if (field.color) return FIELD_COLORS[field.color] || FIELD_COLORS.default
+  if (field.auto) return FIELD_COLORS.auto
   return FIELD_COLORS.default
 }
 
-// ── Нэг draggable field ───────────────────────────────
-function DraggableField({ field }) {
+// ── Field type → icon ─────────────────────────────────
+const TYPE_ICONS = {
+  text:       MdShortText,
+  number:     MdNumbers,
+  date:       MdCalendarToday,
+  textarea:   MdNotes,
+  select:     MdArrowDropDownCircle,
+  signature:  MdDraw,
+  each_start: MdRepeat,
+  each_end:   MdRepeat,
+}
+
+const FieldIcon = ({ field, size = 14, color }) => {
+  const Icon = TYPE_ICONS[field.type] || MdShortText
+  return <Icon size={size} color={color} />
+}
+
+// ── Нэг draggable field (sidebar мөр) ─────────────────
+function DraggableField({ field, onInsert }) {
   const c = getColor(field)
+
   const handleDragStart = (e) => {
     e.dataTransfer.setData('text/plain', `{{${field.key}}}`)
     e.dataTransfer.setData('field-key', field.key)
     e.dataTransfer.effectAllowed = 'copy'
   }
+
   return (
     <div
       draggable
       onDragStart={handleDragStart}
       title={`{{${field.key}}}`}
       style={{ borderColor: c.border, background: c.bg }}
-      className="flex items-center gap-2 px-3 py-2 rounded-lg border cursor-grab
-                 active:cursor-grabbing hover:shadow-sm transition-all mb-1.5 select-none"
+      className="group flex items-center gap-2 px-2.5 py-2 rounded-lg border cursor-grab
+                 active:cursor-grabbing hover:shadow-sm hover:-translate-y-px transition-all
+                 mb-1.5 select-none"
     >
-      <span style={{ background: c.border }} className="w-2 h-2 rounded-full shrink-0" />
+      <MdDragIndicator size={14} className="text-gray-400 shrink-0 -ml-1" />
+      <span
+        style={{ background: c.dot }}
+        className="w-1.5 h-1.5 rounded-full shrink-0"
+      />
+      <FieldIcon field={field} color={c.text} />
       <div className="flex-1 min-w-0">
-        <p style={{ color: c.text }} className="text-xs font-medium truncate">{field.label}</p>
-        {field.auto && <p className="text-xs text-gray-400">автомат</p>}
-        {field.optional && <p className="text-xs text-gray-400">заавал биш</p>}
+        <p style={{ color: c.text }} className="text-xs font-medium truncate leading-tight">
+          {field.label}
+        </p>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          {field.auto && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-500">
+              <MdAutoAwesome size={9} /> авто
+            </span>
+          )}
+          {field.optional && (
+            <span className="text-[10px] text-gray-400">заавал биш</span>
+          )}
+          {field.type && !['text'].includes(field.type) && (
+            <span className="text-[10px] text-gray-400 capitalize">{field.type}</span>
+          )}
+        </div>
       </div>
+      <button
+        onClick={(e) => { e.stopPropagation(); onInsert(field.key) }}
+        title="Cursor байрлалд оруулах"
+        className="opacity-0 group-hover:opacity-100 transition-opacity
+                   w-5 h-5 flex items-center justify-center rounded
+                   bg-white border border-gray-200 hover:bg-gray-50 shrink-0 cursor-pointer"
+      >
+        <MdAdd size={12} className="text-gray-600" />
+      </button>
     </div>
   )
 }
 
-// ── Template Form ─────────────────────────────────────
+// ── Sidebar групп — collapsible + хайлт filter ───────
+function FieldGroup({ group, query, collapsed, onToggle, onInsert }) {
+  const filtered = useMemo(() => {
+    if (!query) return group.fields
+    const q = query.toLowerCase()
+    return group.fields.filter(
+      f => f.label.toLowerCase().includes(q) || f.key.toLowerCase().includes(q)
+    )
+  }, [group.fields, query])
+
+  if (filtered.length === 0) return null
+
+  return (
+    <div className="mb-2">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-1.5 py-1 rounded
+                   hover:bg-gray-100 transition-colors text-left cursor-pointer bg-transparent border-0"
+      >
+        <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+          {group.group}
+          <span className="ml-1.5 text-gray-400 normal-case font-normal">
+            ({filtered.length})
+          </span>
+        </span>
+        {collapsed
+          ? <MdExpandMore size={16} className="text-gray-400" />
+          : <MdExpandLess size={16} className="text-gray-400" />}
+      </button>
+      {!collapsed && (
+        <div className="mt-1">
+          {filtered.map((field, i) => (
+            <DraggableField key={i} field={field} onInsert={onInsert} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Гол Template Editor ───────────────────────────────
 function TemplateEditor({ onSaved, editing, onCancel }) {
   const [name,        setName]        = useState(editing?.name || '')
   const [description, setDescription] = useState(editing?.description || '')
@@ -56,35 +164,30 @@ function TemplateEditor({ onSaved, editing, onCancel }) {
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState(null)
   const [dragOver,    setDragOver]    = useState(false)
+  const [query,       setQuery]       = useState('')
+  const [collapsed,   setCollapsed]   = useState({}) // { groupName: true }
+
   const textareaRef = useRef(null)
   const cursorPosRef = useRef(null)
 
-  // Textarea cursor байрлалыг хадгалах
+  // Cursor байрлал хадгалах
   const saveCursor = () => {
     if (textareaRef.current) {
       cursorPosRef.current = textareaRef.current.selectionStart
     }
   }
 
-  // Drop хийхэд cursor байрлалд placeholder оруулах
-  const handleDrop = (e) => {
-    e.preventDefault()
-    setDragOver(false)
-    const placeholder = e.dataTransfer.getData('text/plain')
-    if (!placeholder) return
-
+  // Cursor байрлалд placeholder оруулах (drag болон click insert)
+  const insertAtCursor = (placeholder) => {
     const ta = textareaRef.current
-    if (!ta) return
-
-    // Drop байрлал тодорхойлох
     const pos = cursorPosRef.current ?? content.length
     const before = content.slice(0, pos)
     const after  = content.slice(pos)
     const newContent = `${before}${placeholder}${after}`
     setContent(newContent)
 
-    // Cursor placeholder-ийн ардаас үргэлжлүүлэх
     setTimeout(() => {
+      if (!ta) return
       ta.focus()
       const newPos = pos + placeholder.length
       ta.setSelectionRange(newPos, newPos)
@@ -92,8 +195,76 @@ function TemplateEditor({ onSaved, editing, onCancel }) {
     }, 0)
   }
 
-  // Usedkeys-аас schema үүсгэх
-  const usedKeys = [...content.matchAll(/\{\{([^}]+)\}\}/g)].map(m => m[1])
+  const handleInsertKey = (key) => insertAtCursor(`{{${key}}}`)
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setDragOver(false)
+    const placeholder = e.dataTransfer.getData('text/plain')
+    if (!placeholder) return
+
+    // Хэрэв drop координат-аас cursor байрлал авч чадвал тэр байрлалд тавина
+    const ta = textareaRef.current
+    if (ta && document.caretPositionFromPoint) {
+      const range = document.caretPositionFromPoint(e.clientX, e.clientY)
+      if (range && range.offsetNode === ta) {
+        cursorPosRef.current = range.offset
+      }
+    } else if (ta && document.caretRangeFromPoint) {
+      const range = document.caretRangeFromPoint(e.clientX, e.clientY)
+      if (range) cursorPosRef.current = range.startOffset
+    }
+
+    insertAtCursor(placeholder)
+  }
+
+  // Used keys + позиц
+  const usedMatches = useMemo(
+    () => [...content.matchAll(/\{\{([^}]+)\}\}/g)].map(m => ({
+      key:   m[1],
+      start: m.index,
+      end:   m.index + m[0].length,
+    })),
+    [content]
+  )
+  const usedKeys = usedMatches.map(m => m.key)
+  const charCount = content.length
+
+  const allFieldsFlat = useMemo(
+    () => CONTRACT_FIELDS.flatMap(g => g.fields),
+    []
+  )
+
+  // Right panel — chip дээр дарвал textarea-д тэр placeholder сонгох
+  const handleUsedClick = (match) => {
+    setPreview(false)
+    setTimeout(() => {
+      const ta = textareaRef.current
+      if (!ta) return
+      ta.focus()
+      ta.setSelectionRange(match.start, match.end)
+      // scroll to roughly that line
+      const approxLine = content.slice(0, match.start).split('\n').length - 1
+      const lineHeight = 26 // ~ leading-loose @ 13px
+      ta.scrollTop = Math.max(0, approxLine * lineHeight - 100)
+      cursorPosRef.current = match.end
+    }, 0)
+  }
+
+  // Used field устгах
+  const handleUsedRemove = (match) => {
+    const before = content.slice(0, match.start)
+    const after  = content.slice(match.end)
+    setContent(before + after)
+    cursorPosRef.current = match.start
+    setTimeout(() => textareaRef.current?.focus(), 0)
+  }
+
+  const toggleGroup = (groupName) =>
+    setCollapsed(c => ({ ...c, [groupName]: !c[groupName] }))
+
+  // Approx page count
+  const approxPages = Math.max(1, Math.ceil(content.split('\n').length / 35))
 
   const handleSubmit = async () => {
     if (!name)    return setError('Загварын нэр шаардлагатай')
@@ -127,128 +298,252 @@ function TemplateEditor({ onSaved, editing, onCancel }) {
         </div>
       )}
 
-      {/* Нэр + тохиргоо */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Нэр + тайлбар + стандарт */}
+      <div className="grid grid-cols-[1fr_1fr_auto] gap-3 items-end">
         <div>
-          <label className="text-xs font-medium text-black mb-1 block">Загварын нэр *</label>
+          <label className="text-xs font-medium text-gray-600 mb-1 block">Загварын нэр *</label>
           <input value={name} onChange={e => setName(e.target.value)}
             placeholder="Мал худалдах гэрээ"
             className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm
-                       outline-none focus:border-[#1e1b4b]" />
+                       outline-none focus:border-[#1e1b4b] focus:ring-2 focus:ring-[#1e1b4b]/10" />
         </div>
         <div>
-          <label className="text-xs font-medium text-black mb-1 block">Тайлбар</label>
+          <label className="text-xs font-medium text-gray-600 mb-1 block">Тайлбар</label>
           <input value={description} onChange={e => setDescription(e.target.value)}
             placeholder="Загварын тайлбар..."
             className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm
-                       outline-none focus:border-[#1e1b4b]" />
+                       outline-none focus:border-[#1e1b4b] focus:ring-2 focus:ring-[#1e1b4b]/10" />
         </div>
+        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer
+                          px-3 py-2 border border-gray-200 rounded-xl hover:bg-gray-50
+                          whitespace-nowrap">
+          <input type="checkbox" checked={isStandard}
+            onChange={e => setIsStandard(e.target.checked)}
+            className="accent-[#1e1b4b] w-4 h-4" />
+          Стандарт загвар
+        </label>
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer w-fit">
-        <input type="checkbox" checked={isStandard}
-          onChange={e => setIsStandard(e.target.checked)}
-          className="accent-[#1e1b4b] w-4 h-4" />
-        Стандарт загвар (бүх хэрэглэгчид харагдана)
-      </label>
+      {/* Гол layout — sidebar + editor + used */}
+      <div className="grid grid-cols-[260px_1fr_240px] gap-3" style={{ height: '600px' }}>
 
-      {/* Гол editor + sidebar */}
-      <div className="flex gap-3" style={{ height: '520px' }}>
-
-        {/* LEFT — Field sidebar */}
-        <div className="w-56 shrink-0 border border-gray-200 rounded-xl overflow-y-auto bg-gray-50">
-          <div className="px-3 py-2.5 border-b border-gray-200 bg-white">
-            <p className="text-xs font-semibold text-gray-700">Талбарууд</p>
-            <p className="text-xs text-gray-400 mt-0.5">Текст дээр чирж тавина</p>
-          </div>
-          <div className="p-2">
-            {CONTRACT_FIELDS.map((group, gi) => (
-              <div key={gi} className="mb-3">
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide
-                              px-1 mb-1.5">{group.group}</p>
-                {group.fields.map((field, fi) => (
-                  <DraggableField key={fi} field={field} />
-                ))}
+        {/* LEFT — Sidebar */}
+        <div className="flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white">
+          <div className="px-3 py-2.5 border-b border-gray-200 bg-gradient-to-b from-gray-50 to-white">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-6 rounded-lg bg-[#1e1b4b]/10 flex items-center justify-center">
+                <MdDragIndicator size={14} className="text-[#1e1b4b]" />
               </div>
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-gray-800 leading-tight">Талбарууд</p>
+                <p className="text-[10px] text-gray-400 leading-tight">Чирж эсвэл + дарж нэмнэ</p>
+              </div>
+            </div>
+            <div className="relative">
+              <MdSearch
+                size={14}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+              />
+              <input
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Талбар хайх..."
+                className="w-full pl-8 pr-2 py-1.5 border border-gray-200 rounded-lg text-xs
+                           outline-none focus:border-[#1e1b4b] bg-gray-50 focus:bg-white"
+              />
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2">
+            {CONTRACT_FIELDS.map((group, gi) => (
+              <FieldGroup
+                key={gi}
+                group={group}
+                query={query}
+                collapsed={!!collapsed[group.group]}
+                onToggle={() => toggleGroup(group.group)}
+                onInsert={handleInsertKey}
+              />
             ))}
+            {query &&
+             CONTRACT_FIELDS.every(g =>
+               g.fields.every(f =>
+                 !f.label.toLowerCase().includes(query.toLowerCase()) &&
+                 !f.key.toLowerCase().includes(query.toLowerCase())
+               )
+             ) && (
+              <p className="text-xs text-gray-400 text-center py-6">
+                Тохирох талбар олдсонгүй
+              </p>
+            )}
           </div>
         </div>
 
         {/* CENTER — Document editor */}
-        <div className="flex-1 flex flex-col border border-gray-200 rounded-xl overflow-hidden">
-          {/* Toolbar */}
-          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200">
-            <span className="text-xs text-gray-500">
-              {usedKeys.length} placeholder ашигласан
-            </span>
-            <button
-              onClick={() => setPreview(p => !p)}
-              className={`ml-auto px-3 py-1 text-xs rounded-lg border transition-colors ${
-                preview
-                  ? 'bg-[#1e1b4b] text-white border-[#1e1b4b]'
-                  : 'border-gray-200 text-black hover:bg-gray-100'
-              }`}>
-              {preview ? 'Засах' : 'Preview'}
-            </button>
+        <div className="flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white">
+          {/* Top toolbar */}
+          <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-b from-gray-50 to-white
+                          border-b border-gray-200">
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-[#EEEDFE] text-[#3C3489]
+                            rounded-md text-xs font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#7166D9]" />
+              {usedKeys.length} placeholder
+            </div>
+            <div className="text-xs text-gray-400">
+              ~{approxPages} хуудас · {charCount.toLocaleString()} тэмдэгт
+            </div>
+            <div className="ml-auto flex items-center gap-1.5">
+              <button
+                onClick={() => setPreview(false)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md
+                            border transition-colors cursor-pointer ${
+                  !preview
+                    ? 'bg-[#1e1b4b] text-white border-[#1e1b4b]'
+                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <MdEdit size={12} /> Засах
+              </button>
+              <button
+                onClick={() => setPreview(true)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md
+                            border transition-colors cursor-pointer ${
+                  preview
+                    ? 'bg-[#1e1b4b] text-white border-[#1e1b4b]'
+                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <MdVisibility size={12} /> Урьдчилан харах
+              </button>
+            </div>
           </div>
 
           {/* Editor / Preview */}
-          {preview ? (
-            <div
-              className="flex-1 overflow-y-auto p-8 bg-white"
-              style={{
-                fontFamily: 'serif',
-                fontSize: '14px',
-                lineHeight: '2',
-                whiteSpace: 'pre-wrap',
-              }}
-              dangerouslySetInnerHTML={{ __html: renderChips(content) }}
-            />
-          ) : (
-            <textarea
-              ref={textareaRef}
-              value={content}
-              onChange={e => setContent(e.target.value)}
-              onSelect={saveCursor}
-              onClick={saveCursor}
-              onKeyUp={saveCursor}
-              onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              placeholder={`Гэрээний бүтэн текстийг энд бичнэ үү.\n\nЖишээ:\nМАЛ ХУДАЛДАХ ГЭРЭЭ\n\nДугаар {{contract_number}}\n{{year}} он {{month}} сар {{day}} өдөр\n\nНэг талаас {{seller.name}}...\n\nТалбаруудыг зүүнээс чирж энд тавина.`}
-              className="flex-1 resize-none outline-none p-8 font-mono text-sm leading-loose"
-              style={{
-                fontFamily: 'Georgia, serif',
-                fontSize: '13px',
-                lineHeight: '2',
-                background: dragOver ? '#EEEDFE' : '#fff',
-                transition: 'background .15s',
-              }}
-            />
-          )}
+          <div className="flex-1 relative overflow-hidden">
+            {preview ? (
+              <div
+                className="absolute inset-0 overflow-y-auto p-10 bg-white"
+                style={{
+                  fontFamily: 'Georgia, serif',
+                  fontSize: '13px',
+                  lineHeight: '2',
+                  whiteSpace: 'pre-wrap',
+                }}
+                dangerouslySetInnerHTML={{ __html: renderChips(content) }}
+              />
+            ) : (
+              <>
+                <textarea
+                  ref={textareaRef}
+                  value={content}
+                  onChange={e => setContent(e.target.value)}
+                  onSelect={saveCursor}
+                  onClick={saveCursor}
+                  onKeyUp={saveCursor}
+                  onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={handleDrop}
+                  placeholder={`Гэрээний бүтэн текстийг энд бичнэ үү.\n\nЖишээ:\nМАЛ ХУДАЛДАХ ГЭРЭЭ\n\nДугаар {{contract_number}}\n{{year}} он {{month}} сар {{day}} өдөр\n\nНэг талаас {{seller.name}}...\n\nТалбаруудыг зүүнээс чирж энд тавина.`}
+                  className="absolute text-black inset-0 resize-none outline-none p-10 leading-loose"
+                  style={{
+                    fontFamily: 'Georgia, "Times New Roman", serif',
+                    fontSize: '13px',
+                    lineHeight: '2',
+                    background: '#fff',
+                    transition: 'background .15s',
+                  }}
+                />
+                {/* Drag overlay */}
+                {dragOver && (
+                  <div className="absolute inset-3 rounded-lg border-2 border-dashed
+                                  border-[#1e1b4b]  flex items-center justify-center
+                                  pointer-events-none animate-pulse">
+                    <div className="flex flex-col items-center gap-2 px-6 py-4 bg-white/90 rounded-xl
+                                    shadow-lg border border-[#1e1b4b]/20">
+                      <MdAdd size={28} className="text-[#1e1b4b]" />
+                      <p className="text-sm font-semibold text-[#1e1b4b]">
+                        Энд тавиад placeholder болгоно уу
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Status bar */}
+          <div className="px-3 py-1.5 bg-gray-50 border-t border-gray-200
+                          flex items-center justify-between text-[11px] text-gray-500">
+            <div className="flex items-center gap-3">
+              <span>
+                {preview
+                  ? 'Урьдчилан харах горим — chip-үүд жинхэнэ үед хэрхэн харагдахыг үзүүлж байна'
+                  : 'Засах горим — placeholder-уудыг {{...}} хэлбэрээр шууд бичих, эсвэл чирж нэмэх'}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              {!preview && cursorPosRef.current !== null && (
+                <span>cursor {cursorPosRef.current}</span>
+              )}
+              <span>{usedKeys.length} placeholder</span>
+            </div>
+          </div>
         </div>
 
         {/* RIGHT — Used placeholders */}
-        <div className="w-52 shrink-0 border border-gray-200 rounded-xl overflow-y-auto bg-gray-50">
-          <div className="px-3 py-2.5 border-b border-gray-200 bg-white">
-            <p className="text-xs font-semibold text-gray-700">Ашигласан талбарууд</p>
-            <p className="text-xs text-gray-400 mt-0.5">Schema автомат үүснэ</p>
+        <div className="flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white">
+          <div className="px-3 py-2.5 border-b border-gray-200 bg-gradient-to-b from-gray-50 to-white">
+            <p className="text-xs font-semibold text-gray-800">Ашигласан талбарууд</p>
+            <p className="text-[10px] text-gray-400 mt-0.5">
+              Schema автомат үүснэ · дарж байрлалд очно
+            </p>
           </div>
-          <div className="p-2">
-            {usedKeys.length === 0 ? (
-              <p className="text-xs text-gray-400 px-2 py-3 text-center">
-                Талбар нэмэгдэхгүй байна
-              </p>
+          <div className="flex-1 overflow-y-auto p-2">
+            {usedMatches.length === 0 ? (
+              <div className="text-center px-3 py-8">
+                <div className="w-10 h-10 rounded-full bg-gray-100 mx-auto mb-2
+                                flex items-center justify-center">
+                  <MdAdd size={18} className="text-gray-400" />
+                </div>
+                <p className="text-xs text-gray-400">
+                  Талбар нэмэгдэхгүй байна
+                </p>
+                <p className="text-[10px] text-gray-300 mt-1">
+                  Зүүн талаас чирж нэмнэ үү
+                </p>
+              </div>
             ) : (
-              usedKeys.map((key, i) => {
-                const allFields = CONTRACT_FIELDS.flatMap(g => g.fields)
-                const field = allFields.find(f => f.key === key)
-                const c = field ? getColor(field) : FIELD_COLORS.default
+              usedMatches.map((m, i) => {
+                const field = allFieldsFlat.find(f => f.key === m.key)
+                const c = getColor(field)
                 return (
-                  <div key={i}
-                    style={{ background: c.bg, borderColor: c.border, color: c.text }}
-                    className="px-2 py-1.5 rounded-lg border text-xs mb-1.5 font-mono truncate">
-                    {`{{${key}}}`}
+                  <div
+                    key={i}
+                    onClick={() => handleUsedClick(m)}
+                    style={{ background: c.bg, borderColor: c.border }}
+                    className="group flex items-center gap-1.5 px-2 py-1.5 rounded-lg border
+                               mb-1.5 cursor-pointer hover:shadow-sm transition-all"
+                    title="Дарж editor-т сонгох"
+                  >
+                    <span
+                      style={{ background: c.dot }}
+                      className="w-1.5 h-1.5 rounded-full shrink-0"
+                    />
+                    {field && <FieldIcon field={field} color={c.text} size={12} />}
+                    <span
+                      style={{ color: c.text }}
+                      className="flex-1 min-w-0 text-[11px] font-medium truncate"
+                    >
+                      {field?.label || m.key}
+                    </span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleUsedRemove(m) }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity
+                                 w-4 h-4 flex items-center justify-center rounded
+                                 hover:bg-white/70 shrink-0 cursor-pointer bg-transparent border-0"
+                      title="Устгах"
+                    >
+                      <MdClose size={10} style={{ color: c.text }} />
+                    </button>
                   </div>
                 )
               })
@@ -257,11 +552,13 @@ function TemplateEditor({ onSaved, editing, onCancel }) {
             {/* Schema JSON preview */}
             {usedKeys.length > 0 && (
               <details className="mt-3">
-                <summary className="text-xs text-gray-400 cursor-pointer hover:text-black px-1">
-                  Schema JSON
+                <summary className="text-[10px] text-gray-400 cursor-pointer hover:text-black px-1
+                                    select-none">
+                  Schema JSON харах
                 </summary>
-                <pre className="mt-2 p-2 bg-gray-900 text-green-400 text-xs rounded-lg overflow-auto max-h-48 whitespace-pre-wrap">
-                  {JSON.stringify(buildSchemaJson(usedKeys), null, 2)}
+                <pre className="mt-1.5 p-2 bg-gray-900 text-green-400 text-[10px] rounded-lg
+                                overflow-auto max-h-48 whitespace-pre-wrap leading-snug">
+{JSON.stringify(buildSchemaJson(usedKeys), null, 2)}
                 </pre>
               </details>
             )}
@@ -273,13 +570,14 @@ function TemplateEditor({ onSaved, editing, onCancel }) {
       <div className="flex gap-3 pt-1">
         <button onClick={handleSubmit} disabled={loading}
           className="px-6 py-2.5 bg-[#1e1b4b] text-white text-sm font-semibold rounded-xl
-                     hover:bg-[#2d2a6e] disabled:opacity-40 disabled:cursor-not-allowed">
+                     hover:bg-[#2d2a6e] disabled:opacity-40 disabled:cursor-not-allowed
+                     cursor-pointer border-0 shadow-sm">
           {loading ? 'Хадгалж байна...' : editing ? 'Хадгалах' : 'Загвар үүсгэх'}
         </button>
         {onCancel && (
           <button onClick={onCancel}
-            className="px-5 py-2.5 border border-gray-200 text-black text-sm rounded-xl
-                       hover:bg-gray-50">
+            className="px-5 py-2.5 border border-gray-200 text-gray-700 text-sm rounded-xl
+                       hover:bg-gray-50 cursor-pointer bg-white">
             Цуцлах
           </button>
         )}
@@ -309,16 +607,14 @@ export default function AdminTemplatesPage() {
 
   useEffect(() => { fetchTemplates() }, [])
 
-  // Бүтэн template (template_content-той) татах
   const fetchFullTemplate = async (id) => {
     const res = await api.get(`/admin/templates/${id}`)
     return res.data.data
   }
 
-  // Row дарвал preview гаргах
   const handleRowClick = async (id) => {
     setPreviewLoading(true)
-    setPreviewing({})  // modal-ыг нээж loading харуулах
+    setPreviewing({})
     try {
       const full = await fetchFullTemplate(id)
       setPreviewing(full)
@@ -330,7 +626,6 @@ export default function AdminTemplatesPage() {
     }
   }
 
-  // Засах товч — бүтэн template-ийг татаад editor нээх
   const handleEdit = async (id) => {
     try {
       const full = await fetchFullTemplate(id)
@@ -372,7 +667,7 @@ export default function AdminTemplatesPage() {
         {!creating && !editing && (
           <button onClick={() => setCreating(true)}
             className="px-5 py-2.5 bg-[#1e1b4b] text-white text-sm font-semibold
-                       rounded-xl hover:bg-[#2d2a6e]">
+                       rounded-xl hover:bg-[#2d2a6e] cursor-pointer border-0 shadow-sm">
             + Шинэ загвар
           </button>
         )}
@@ -390,7 +685,7 @@ export default function AdminTemplatesPage() {
 
       {/* Editor */}
       {(creating || editing) && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6 shadow-sm">
           <h2 className="text-base font-semibold text-gray-900 mb-5">
             {editing ? 'Загвар засах' : 'Шинэ загвар үүсгэх'}
           </h2>
@@ -461,7 +756,7 @@ export default function AdminTemplatesPage() {
         ))}
       </div>
 
-      {/* Preview modal — read-only, засварлах боломжгүй */}
+      {/* Preview modal */}
       {previewing !== null && (
         <TemplatePreview
           template={previewing}

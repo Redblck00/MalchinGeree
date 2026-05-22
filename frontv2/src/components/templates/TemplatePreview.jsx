@@ -45,7 +45,7 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
     return () => window.removeEventListener('keydown', handleEsc)
   }, [onClose])
 
-  // ── Бүх агуулгын өндрийг хэмжээд хуудасны тоог тооцох ──
+  // ── Бүх агуулгын өндрийг хэмжээд хуудасны тоог тооцох
   useEffect(() => {
     if (!htmlContent || !measureRef.current) {
       setPageCount(1)
@@ -112,7 +112,7 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl w-full shadow-2xl overflow-hidden flex flex-col relative"
+        className="bg-white  w-full shadow-2xl overflow-hidden flex flex-col relative"
         style={{ maxWidth: '1000px', height: '90vh' }}
         onClick={e => e.stopPropagation()}
       >
@@ -278,14 +278,7 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
               </div>
 
               <div className="flex flex-col gap-3 mt-8">
-                <button
-                  onClick={() => onUse?.(template)}
-                  className="w-full py-4 bg-[#1e1b4b] text-white font-semibold
-                             text-base rounded-xl hover:bg-[#2d2a6e]
-                             transition-colors cursor-pointer border-0"
-                >
-                  Гэрээ үүсгэх
-                </button>
+               
                 <button
                   onClick={onClose}
                   className="w-full py-3 border border-gray-200 text-gray-600

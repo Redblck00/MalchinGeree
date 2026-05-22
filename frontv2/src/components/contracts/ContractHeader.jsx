@@ -2,7 +2,7 @@
 import { useRouter } from 'next/navigation'
 import {
   MdArrowBack, MdPictureAsPdf, MdDescription,
-  MdPrint, MdEdit, MdStar,
+  MdPrint, MdEdit, MdStar, MdHistory, MdCancel,
 } from 'react-icons/md'
 import StatusBadge from './StatusBadge'
 
@@ -28,10 +28,13 @@ export default function ContractHeader({
   onDocx,
   onPrint,
   onRate,
+  onHistory,
+  onCancel,
   downloadBusy,
   canEdit = false,
   canRate = false,
   hasRated = false,
+  canCancel = false,
 }) {
   const router = useRouter()
 
@@ -96,13 +99,24 @@ export default function ContractHeader({
             busy={downloadBusy === 'docx'}
             disabled={downloadBusy !== null}
           />
-          <ActionButton
+          {/* <ActionButton
             icon={<MdPrint size={16} />}
             label="Хэвлэх"
             onClick={onPrint}
             busy={downloadBusy === 'print'}
             disabled={downloadBusy !== null}
-          />
+          /> */}
+          {onHistory && (
+            <button
+              onClick={onHistory}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold
+                         text-[#3d3a8c] border border-[#3d3a8c]/30 rounded-lg
+                         hover:bg-[#3d3a8c]/5 cursor-pointer bg-white"
+              title="Өөрчлөлтийн түүх / тайлбар"
+            >
+              <MdHistory size={16} /> Түүх
+            </button>
+          )}
           {canEdit && (
             <button
               onClick={onEdit}
@@ -121,6 +135,17 @@ export default function ContractHeader({
                          cursor-pointer border-0"
             >
               <MdStar size={16} /> {hasRated ? 'Үнэлгээ засах' : 'Үнэлэх'}
+            </button>
+          )}
+          {canCancel && (
+            <button
+              onClick={onCancel}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold
+                         text-red-600 border border-red-200 rounded-lg
+                         hover:bg-red-50 cursor-pointer bg-white"
+              title="Гэрээг цуцлах"
+            >
+              <MdCancel size={16} /> Цуцлах
             </button>
           )}
         </div>

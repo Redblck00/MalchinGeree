@@ -1,7 +1,8 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import SignatureModal from '@/components/signature/SignatureModal'
 import AcceptModal from '@/components/contracts/AcceptModal'
+import ChangeLog from '@/components/contracts/ChangeLog'
 import {
   MdCheckCircle, MdSend, MdEdit, MdAttachFile,
   MdPersonOutline, MdPhone, MdMail, MdRemoveRedEye,
@@ -9,7 +10,8 @@ import {
   MdNotificationsActive, MdExpandMore, MdExpandLess,
   MdVerified, MdHourglassEmpty, MdCloudUpload,
   MdBlock, MdSchedule, MdCancel, MdVerifiedUser,
-  MdClose, MdStar, MdStarBorder,
+  MdClose, MdStar, MdStarBorder, MdHistory, MdNote,
+  MdInfoOutline,
 } from 'react-icons/md'
 
 // ── Backend дээрх uploads/profiles/xxx.jpg-г бүрэн URL болгох ──
@@ -392,7 +394,7 @@ function SignatureCard({
           </div>
           {p.signed_at && (
             <p className="text-[11px] text-emerald-700 m-0 mt-1">
-              {formatDateTime(p.signed_at)} · бб баталгаажсан
+              {formatDateTime(p.signed_at)}  Баталгаажсан
             </p>
           )}
         </div>
@@ -512,6 +514,75 @@ function SignaturesTab({
   )
 }
 
+// ──────────────────────────────────────────────────────────────
+// History (өөрчлөлтийн түүх + comment box)
+//   • ChangeLog: бүх оролцогчид харагдана
+//   • Comment box: зөвхөн SENT + myTurn үед — өөрчлөлтгүй ч comment-ийг
+//     /return-ээр илгээх боломжтой (backend note-only log дэмждэг)
+// ──────────────────────────────────────────────────────────────
+function HistoryTab({
+  contract, currentUserId, myTurn,
+  refreshLogKey, quickNote, setQuickNote,
+  onSendComment, sending,
+}) {
+  const canComment = contract.status === 'SENT' && myTurn
+  return (
+    <div className="flex flex-col gap-4 h-full">
+      {canComment && (
+        <div className="flex flex-col gap-1.5 shrink-0">
+          <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500
+                            inline-flex items-center gap-1">
+            <MdNote size={12} /> Тайлбар нэмэх
+          </label>
+          <textarea
+            value={quickNote}
+            onChange={(e) => setQuickNote(e.target.value.slice(0, 1000))}
+            rows={3}
+            placeholder="Жишээ: Нэгж үнийг 480к → 500к болгож тохиров уу..."
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg
+                       outline-none focus:border-[#3d3a8c] focus:ring-1 focus:ring-[#3d3a8c]/30
+                       bg-white resize-none"
+          />
+          <div className="flex items-center justify-between text-[10px] text-gray-400">
+            <span className="inline-flex items-center gap-1">
+              <MdInfoOutline size={11} />
+              Нөгөө тал email + мэдэгдэлд харна
+            </span>
+            <span>{quickNote.length}/1000</span>
+          </div>
+          <button
+            type="button"
+            onClick={onSendComment}
+            disabled={!quickNote.trim() || sending}
+            className="mt-1 w-full inline-flex items-center justify-center gap-1.5
+                       px-3 py-2 text-xs font-semibold text-white
+                       bg-[#3d3a8c] hover:bg-[#2d2a6e] rounded-lg cursor-pointer border-0
+                       disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <MdSend size={12} /> {sending ? 'Илгээж байна...' : 'Тайлбар илгээх'}
+          </button>
+        </div>
+      )}
+
+      {!canComment && contract.status === 'SENT' && (
+        <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200
+                      rounded-lg px-3 py-2 m-0 inline-flex items-start gap-1.5">
+          <MdInfoOutline size={12} className="shrink-0 mt-0.5" />
+          Одоо нөгөө талын ээлж. Тайлбар нэмэхийн тулд таны ээлж ирэхийг хүлээнэ үү.
+        </p>
+      )}
+
+      <div className="flex-1 min-h-0 flex flex-col">
+        <ChangeLog
+          contractId={contract.contract_id}
+          currentUserId={currentUserId}
+          refreshKey={refreshLogKey}
+        />
+      </div>
+    </div>
+  )
+}
+
 function formatDateTime(iso) {
   try {
     const d = new Date(iso)
@@ -567,7 +638,7 @@ function BottomAction({
     if (myTurn) {
       return (
         <button
-          onClick={onReturn}
+          onClick={() => onReturn()}
           disabled={sending}
           className="w-full inline-flex items-center justify-center gap-1.5
                      px-4 py-2.5 text-sm font-semibold text-white
@@ -682,11 +753,21 @@ export default function ContractSidebar({
   confirming,
   closing,
   uploadingAttachment,
+  tab: controlledTab,         // optional controlled mode (parent-аас удирдах)
+  onTabChange,                // controlled tab change handler
+  refreshLogKey = 0,          // ChangeLog татах сигналыг шинэчлэх
 }) {
-  const [tab, setTab]                       = useState('participants')
+  const [internalTab, setInternalTab]       = useState('participants')
+  const tab = controlledTab ?? internalTab
+  const setTab = (next) => {
+    if (onTabChange) onTabChange(next)
+    else setInternalTab(next)
+  }
+
   const [drawModalOpen,   setDrawModalOpen] = useState(false)
   const [acceptModalOpen, setAcceptModalOpen] = useState(false)
   const [recipientEmail,  setRecipientEmail]  = useState('')
+  const [quickNote,       setQuickNote]       = useState('')
 
   const status      = contract.status
   const isCreator   = contract.creator_id === user?.user_id
@@ -772,6 +853,9 @@ export default function ContractSidebar({
           <TabButton active={tab === 'signatures'} onClick={() => setTab('signatures')}>
             Гарын үсэг
           </TabButton>
+          <TabButton active={tab === 'history'} onClick={() => setTab('history')}>
+            <MdHistory size={12} /> Түүх
+          </TabButton>
         </div>
 
         {/* Tab content — scrollable middle area */}
@@ -804,6 +888,25 @@ export default function ContractSidebar({
               onSignClick={() => savedSignature
                 ? setAcceptModalOpen(true)
                 : setDrawModalOpen(true)}
+            />
+          )}
+          {tab === 'history' && (
+            <HistoryTab
+              contract={contract}
+              currentUserId={user?.user_id}
+              myTurn={myTurn}
+              refreshLogKey={refreshLogKey}
+              quickNote={quickNote}
+              setQuickNote={setQuickNote}
+              onSendComment={async () => {
+                const note = quickNote.trim()
+                if (!note) return
+                try {
+                  await onReturn?.(note)
+                  setQuickNote('')
+                } catch { /* parent handles error */ }
+              }}
+              sending={sending}
             />
           )}
         </div>

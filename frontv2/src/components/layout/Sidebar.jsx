@@ -154,8 +154,8 @@ export default function Sidebar() {
         Загвар
       </ParentItem>
 
-      {/* ── COMMUNICATION section ─────────────────── */}
-      <SectionHeader>COMMUNICATION</SectionHeader>
+{/*      
+      <SectionHeader>COMMUNICATION</SectionHeader> */}
 
       <ParentItem
         icon={<Image src="/user-multiple.png" alt="" width={20} height={20} className="opacity-70" />}
