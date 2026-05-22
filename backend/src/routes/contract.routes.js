@@ -3,6 +3,7 @@ const router  = express.Router()
 const auth    = require('../middlewares/auth.middleware')
 const c       = require('../controllers/contract.controller')
 const { attachmentUpload, handleUploadError } = require('../utils/upload')
+const { signOtpLimiter } = require('../middlewares/rateLimit.middleware')
 
 // ══════════════════════════════════════════════════════
 // PUBLIC — нэвтрэлт шаардахгүй
@@ -86,8 +87,16 @@ router.post('/:id/send',            c.sendContract)
 // ГАРЫН ҮСЭГ ЗУРАХ
 // ══════════════════════════════════════════════════════
 
+// POST /api/contracts/:id/sign/request-otp
+// → Хэрэглэгчийн нэвтэрсэн имэйл рүү 6 оронтой OTP илгээнэ (5 минут хүчинтэй)
+// → Rate limit: 15 минутад 5 удаа
+// → /sign endpoint-д заавал шаардлагатай otp_code-ийг бэлдэх
+router.post('/:id/sign/request-otp', signOtpLimiter, c.requestSignOtp)
+
 // POST /api/contracts/:id/sign
-// Body: { signature_blob: 'base64...', placeholder_key: 'seller_signature' }
+// Body: { signature_blob: 'data:image/...;base64,...',
+//         placeholder_key: 'seller_signature',
+//         otp_code: '123456' }    ← заавал
 // → contract_signatures хүснэгтэд хадгална
 // → Trigger: participant.status = SIGNED
 // → Trigger: бүгд зурсан бол contract.status = FULLY_SIGNED
@@ -107,12 +116,17 @@ router.patch('/:id/counterparty-fill', c.fillCounterpartyData)
 // ══════════════════════════════════════════════════════
 
 // POST /api/contracts/:id/return
-// Body: { filled_data_json?: {...} }
+// Body: { filled_data_json?: {...}, note?: string }
 // → SENT status, current_turn-той тал л дуудна
-// → filled_data өөрчилсөн бол contract_versions UPDATE + edit_log
+// → filled_data өөрчилсөн бол contract_versions UPDATE + edit_log (note-той)
 // → current_turn нөгөө талд шилжинэ
-// → Нөгөө талд in-app + email notification
+// → Нөгөө талд in-app + email notification (note preview-д)
 router.post('/:id/return', c.returnContract)
+
+// GET /api/contracts/:id/edit-log
+// → Гэрээний бүх өөрчлөлтийн түүх (changed_fields JSON + note + editor name)
+// → Зөвхөн оролцогч
+router.get('/:id/edit-log', c.getEditLog)
 
 // ══════════════════════════════════════════════════════
 // БАТАЛГААЖУУЛАХ — үүсгэгч
@@ -129,6 +143,9 @@ router.post('/:id/confirm',         c.confirmContract)
 
 // POST /api/contracts/:id/cancel
 // Body: { reason? }
+// → Аль ч талын оролцогч (CREATOR эсвэл COUNTERPARTY) дуудаж болно.
+// → Хоёр тал гарын үсэг зурсан (FULLY_SIGNED) ЭСВЭЛ terminal статуст бол блокно.
+// → DRAFT/SENT статусаас CANCELLED руу шилждэг.
 router.post('/:id/cancel',          c.cancelContract)
 
 // ══════════════════════════════════════════════════════

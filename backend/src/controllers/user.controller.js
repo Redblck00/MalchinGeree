@@ -1,4 +1,6 @@
-const { query } = require('../config/db')
+﻿const { query } = require('../config/db')
+const { safeErrorMessage } = require('../utils/errors')
+const { deleteFile } = require('../utils/upload')
 
 // ── GET /api/users/profile ────────────────────────────
 const getProfile = async (req, res) => {
@@ -12,7 +14,7 @@ const getProfile = async (req, res) => {
     )
     res.json({ data: result.rows[0] })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -46,7 +48,7 @@ const updateProfile = async (req, res) => {
     if (err.code === '23505') {  // unique violation
       return res.status(409).json({ message: 'Уг утасны дугаар аль хэдийн бүртгэгдсэн' })
     }
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -96,7 +98,7 @@ const getRatings = async (req, res) => {
     })
   } catch (err) {
     console.error('getRatings:', err)
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -111,7 +113,7 @@ const deleteAccount = async (req, res) => {
     )
     res.json({ message: 'Бүртгэл устгагдлаа' })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -119,15 +121,29 @@ const deleteAccount = async (req, res) => {
 const uploadProfileImage = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'Зураг оруулна уу' })
+
+    // Хуучин зургийг авч, амжилттай UPDATE-ийн дараа диск дээрээс устгана.
+    // Disk leak-ээс сэргийлэх (ижил хэрэглэгч олон удаа зураг солих үед).
+    const oldRes = await query(
+      `SELECT profile_image_url FROM users WHERE user_id = $1`,
+      [req.user.user_id]
+    )
+    const oldUrl = oldRes.rows[0]?.profile_image_url || null
+
     const url = `uploads/profiles/${req.file.filename}`
     await query(
       `UPDATE users SET profile_image_url = $1, updated_at = NOW()
        WHERE user_id = $2`,
       [url, req.user.user_id]
     )
+
+    // UPDATE амжилттай үед хуучин файлыг устгах. deleteFile нь дотроо
+    // try/catch-тай тул main flow-д нөлөөлөхгүй.
+    if (oldUrl && oldUrl !== url) deleteFile(oldUrl)
+
     res.json({ data: { profile_image_url: url } })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -150,7 +166,7 @@ const searchByPhone = async (req, res) => {
     if (!result.rows[0]) return res.status(404).json({ message: 'Хэрэглэгч олдсонгүй' })
     res.json({ data: result.rows[0] })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -168,7 +184,7 @@ const getSignatures = async (req, res) => {
     )
     res.json({ data: result.rows })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -196,7 +212,7 @@ const saveSignature = async (req, res) => {
     )
     res.status(201).json({ data: result.rows[0] })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -219,7 +235,7 @@ const setDefaultSignature = async (req, res) => {
     if (!result.rows[0]) return res.status(404).json({ message: 'Гарын үсэг олдсонгүй' })
     res.json({ data: result.rows[0] })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -235,7 +251,7 @@ const deleteSignature = async (req, res) => {
     if (!result.rows[0]) return res.status(404).json({ message: 'Гарын үсэг олдсонгүй' })
     res.json({ message: 'Гарын үсэг устгагдлаа' })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -254,7 +270,7 @@ const getNotifications = async (req, res) => {
     const unread = result.rows.filter(n => !n.is_read).length
     res.json({ data: result.rows, unread })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -268,7 +284,7 @@ const markNotificationRead = async (req, res) => {
     )
     res.json({ message: 'Уншсан гэж тэмдэглэгдлээ' })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -282,14 +298,15 @@ const markAllNotificationsRead = async (req, res) => {
     )
     res.json({ message: 'Бүгд уншсан гэж тэмдэглэгдлээ' })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
 // ══════════════════════════════════════════════════════
 // LIVESTOCK STATISTICS
 // GET /api/users/livestock/stats?role=buyer|seller&period=month|quarter|year
-// → 4 хэсэгтэй stats: total · by_type · by_period · recent
+// → total · by_type · by_period · price_trend · recent
+// Зөвхөн хүсэлт явуулсан хэрэглэгчийн өөрийн өгөгдөл (хувийн статистик).
 // ══════════════════════════════════════════════════════
 
 const getLivestockStats = async (req, res) => {
@@ -301,23 +318,38 @@ const getLivestockStats = async (req, res) => {
     const userField  = role === 'buyer' ? 'buyer_id'  : 'seller_id'
     const otherField = role === 'buyer' ? 'seller_id' : 'buyer_id'
 
-    // 1. Нийт хураангуй
+    // 1. KPI хураангуй
+    //    per_contract CTE: нэг гэрээний нийт дүнгээр групплэх → дундаж/хамгийн өндөр
+    //    "гэрээний үнэ" гарна (нэг гэрээнд олон төрлийн мал орсон ч зөв тоологдоно).
     const totalRes = await query(
-      `SELECT
-         COALESCE(SUM(count), 0)::INT          AS total_count,
-         COALESCE(SUM(total_amount), 0)::FLOAT AS total_amount,
-         COUNT(DISTINCT contract_id)::INT      AS contracts_count,
-         COUNT(*)::INT                         AS items_count
-       FROM livestock_transactions
-       WHERE ${userField} = $1`,
+      `WITH per_contract AS (
+         SELECT contract_id,
+                SUM(total_amount) AS contract_amount,
+                SUM(count)        AS contract_count,
+                COUNT(*)          AS contract_items
+         FROM livestock_transactions
+         WHERE ${userField} = $1
+         GROUP BY contract_id
+       )
+       SELECT
+         COALESCE(SUM(contract_count), 0)::INT     AS total_count,
+         COALESCE(SUM(contract_amount), 0)::FLOAT  AS total_amount,
+         COUNT(*)::INT                             AS contracts_count,
+         COALESCE(SUM(contract_items), 0)::INT     AS items_count,
+         COALESCE(AVG(contract_amount), 0)::FLOAT  AS avg_contract_amount,
+         COALESCE(MAX(contract_amount), 0)::FLOAT  AS max_contract_amount
+       FROM per_contract`,
       [userId]
     )
 
-    // 2. Малын төрлөөр
+    // 2. Малын төрлөөр (Pie chart) — count + amount + дундаж нэгж үнэ
+    //    AVG нь NULL утгуудыг автоматаар алгасдаг тул price_per_unit IS NULL мөрүүд
+    //    avg_price тооцоонд орохгүй (харин count/amount-д орно).
     const byTypeRes = await query(
       `SELECT livestock_type,
-              SUM(count)::INT          AS count,
-              SUM(total_amount)::FLOAT AS amount
+              SUM(count)::INT            AS count,
+              SUM(total_amount)::FLOAT   AS amount,
+              AVG(price_per_unit)::FLOAT AS avg_price
        FROM livestock_transactions
        WHERE ${userField} = $1
        GROUP BY livestock_type
@@ -325,7 +357,8 @@ const getLivestockStats = async (req, res) => {
       [userId]
     )
 
-    // 3. Сар/улирал/жилээр
+    // 3. Сар/улирал/жилээр (Bar chart + KPI "хамгийн идэвхтэй сар")
+    //    ASC дараалал — frontend timeline зурахад шууд таарна.
     const byPeriodRes = await query(
       `SELECT DATE_TRUNC($2, transaction_date) AS period,
               SUM(count)::INT                  AS count,
@@ -333,12 +366,28 @@ const getLivestockStats = async (req, res) => {
        FROM livestock_transactions
        WHERE ${userField} = $1
        GROUP BY period
-       ORDER BY period DESC
-       LIMIT 12`,
+       ORDER BY period ASC
+       LIMIT 24`,
       [userId, period]
     )
 
-    // 4. Сүүлийн 10 гүйлгээ
+    // 4. Үнийн өсөлт (Line chart) — period × livestock_type × дундаж нэгж үнэ
+    //    Малын төрөл бүрд line нэг → frontend дээр livestock_type-аар бүлэглэнэ.
+    //    price_per_unit IS NULL мөрүүдийг шүүж хаасан — null line гаргахгүй.
+    const priceTrendRes = await query(
+      `SELECT DATE_TRUNC($2, transaction_date) AS period,
+              livestock_type,
+              AVG(price_per_unit)::FLOAT       AS avg_price,
+              SUM(count)::INT                  AS count
+       FROM livestock_transactions
+       WHERE ${userField} = $1
+         AND price_per_unit IS NOT NULL
+       GROUP BY period, livestock_type
+       ORDER BY period ASC, livestock_type ASC`,
+      [userId, period]
+    )
+
+    // 5. Сүүлийн 10 гүйлгээ
     const recentRes = await query(
       `SELECT lt.transaction_id, lt.livestock_type, lt.count,
               lt.price_per_unit, lt.total_amount, lt.transaction_date,
@@ -357,15 +406,43 @@ const getLivestockStats = async (req, res) => {
       data: {
         role,
         period,
-        total:     totalRes.rows[0],
-        by_type:   byTypeRes.rows,
-        by_period: byPeriodRes.rows,
-        recent:    recentRes.rows,
+        total:       totalRes.rows[0],
+        by_type:     byTypeRes.rows,
+        by_period:   byPeriodRes.rows,
+        price_trend: priceTrendRes.rows,
+        recent:      recentRes.rows,
       },
     })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// TOP-RATED USERS (хувийн профайл хэсэгт зориулсан leaderboard)
+// GET /api/users/top-rated?limit=5
+// Идэвхтэй хэрэглэгчдээс үнэлгээний дундажаар эрэмбэлж тодорхой тоогоор буцаана.
+// Глобал жагсаалт — auth-ласан хэрэглэгчид харах боломжтой.
+// ══════════════════════════════════════════════════════
+const getTopRatedUsers = async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 5, 1), 20)
+    const result = await query(
+      `SELECT u.user_id, u.first_name, u.last_name,
+              u.profile_image_url, u.user_type,
+              s.rating_avg, s.rating_count
+       FROM user_rating_summary s
+       JOIN users u ON u.user_id = s.user_id
+       WHERE u.status = 'ACTIVE'
+       ORDER BY s.rating_avg DESC, s.rating_count DESC, u.first_name ASC
+       LIMIT $1`,
+      [limit]
+    )
+    res.json({ data: result.rows })
+  } catch (err) {
+    console.error('getTopRatedUsers:', err)
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -376,4 +453,5 @@ module.exports = {
   getSignatures, saveSignature, setDefaultSignature, deleteSignature,
   getNotifications, markNotificationRead, markAllNotificationsRead,
   getLivestockStats,
+  getTopRatedUsers,
 }

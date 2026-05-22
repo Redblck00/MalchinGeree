@@ -15,6 +15,10 @@ const publicRoutes   = require('./routes/public.routes')
 const app  = express()
 const PORT = process.env.PORT || 5000
 
+// ── Proxy ард ажиллах үед req.ip болон rate limit ажиллахын тулд ──
+// nginx / Cloudflare / Render ард байх үед X-Forwarded-For уншина.
+app.set('trust proxy', 1)
+
 // ── Security middleware ────────────────────────────────
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' }, contentSecurityPolicy: false }))
 app.use(express.json({ limit: '10mb' }))
@@ -41,11 +45,21 @@ app.use('/api/admin',     adminRoutes)
 app.use('/api/contracts', contractRoutes)
 
 // ── Health check ───────────────────────────────────────
-app.get('/health', async (req, res) => {
+// DoS-аас сэргийлэх: rate-limited + cached (5 секунд хүчинтэй).
+// DB-д хэрэглэгч бүрт SELECT хийхгүй.
+let healthCache = { time: 0, ok: false, err: null }
+const HEALTH_TTL_MS = 5000
+app.get('/health', apiLimiter, async (req, res) => {
+  if (Date.now() - healthCache.time < HEALTH_TTL_MS) {
+    if (healthCache.ok) return res.json({ status: 'ok', db: 'connected', time: new Date().toISOString() })
+    return res.status(500).json({ status: 'error', db: 'disconnected' })
+  }
   try {
     await pool.query('SELECT 1')
+    healthCache = { time: Date.now(), ok: true, err: null }
     res.json({ status: 'ok', db: 'connected', time: new Date().toISOString() })
-  } catch {
+  } catch (err) {
+    healthCache = { time: Date.now(), ok: false, err: err?.message }
     res.status(500).json({ status: 'error', db: 'disconnected' })
   }
 })

@@ -1,7 +1,8 @@
-const express = require('express')
+﻿const express = require('express')
 const router  = express.Router()
 const { query }       = require('../config/db')
 const { verifyBlock } = require('../utils/blockchain')
+const { safeErrorMessage } = require('../utils/errors')
 
 // ── GET /api/public/templates ─────────────────────────
 // Бүх идэвхтэй гэрээний загварыг (нэвтрээгүй ч) харах
@@ -16,7 +17,7 @@ router.get('/templates', async (req, res) => {
     )
     res.json({ data: result.rows })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 })
 
@@ -34,7 +35,7 @@ router.get('/templates/:id', async (req, res) => {
     if (!result.rows[0]) return res.status(404).json({ message: 'Загвар олдсонгүй' })
     res.json({ data: result.rows[0] })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 })
 
@@ -130,7 +131,7 @@ router.get('/verify/:id', async (req, res) => {
     })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 })
 

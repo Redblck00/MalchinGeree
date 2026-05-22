@@ -2,8 +2,10 @@ const crypto = require('crypto')
 const { query } = require('../config/db')
 
 // 6 оронтой OTP үүсгэх
+// crypto.randomInt — Math.random-аас ялгаатай нь криптограф найдвартай
+// (V8-ийн PRNG-ийг урьдчилан таамаглах халдлагаас сэргийлнэ).
 const generateOtp = () =>
-  Math.floor(100000 + Math.random() * 900000).toString()
+  crypto.randomInt(100000, 1000000).toString()
 
 const hashCode = (code) =>
   crypto.createHash('sha256').update(code).digest('hex')

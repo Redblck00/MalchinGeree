@@ -1,5 +1,6 @@
-const { query } = require('../config/db')
+﻿const { query } = require('../config/db')
 const { log, LOG } = require('../utils/logger')
+const { safeErrorMessage } = require('../utils/errors')
 
 // ── TEMPLATE ──────────────────────────────────────────
 
@@ -15,7 +16,7 @@ const getTemplates = async (req, res) => {
     )
     res.json({ data: result.rows })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -31,7 +32,7 @@ const getTemplateById = async (req, res) => {
     if (!result.rows[0]) return res.status(404).json({ message: 'Загвар олдсонгүй' })
     res.json({ data: result.rows[0] })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -70,7 +71,7 @@ const createTemplate = async (req, res) => {
 
     res.status(201).json({ message: 'Загвар амжилттай үүслээ', data: result.rows[0] })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -101,7 +102,7 @@ const updateTemplate = async (req, res) => {
     if (!result.rows[0]) return res.status(404).json({ message: 'Загвар олдсонгүй' })
     res.json({ data: result.rows[0] })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -110,7 +111,7 @@ const deleteTemplate = async (req, res) => {
     await query(`DELETE FROM contract_templates WHERE template_id = $1`, [req.params.id])
     res.json({ message: 'Загвар устгагдлаа' })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -125,7 +126,7 @@ const getUsers = async (req, res) => {
     )
     res.json({ data: result.rows })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -142,7 +143,7 @@ const updateUserStatus = async (req, res) => {
     if (!result.rows[0]) return res.status(404).json({ message: 'Хэрэглэгч олдсонгүй' })
     res.json({ data: result.rows[0] })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -161,7 +162,7 @@ const updateContractStatus = async (req, res) => {
     if (!result.rows[0]) return res.status(404).json({ message: 'Гэрээ олдсонгүй' })
     res.json({ data: result.rows[0] })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -179,7 +180,7 @@ const getContracts = async (req, res) => {
     )
     res.json({ data: result.rows })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -207,7 +208,7 @@ const getStats = async (req, res) => {
       },
     })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -229,7 +230,7 @@ const getLogs = async (req, res) => {
     )
     res.json({ data: result.rows })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 

@@ -1,14 +1,36 @@
-const crypto              = require('crypto')
-const { query }           = require('../config/db')
+﻿const crypto              = require('crypto')
+const Handlebars          = require('handlebars')
+const { query, withTransaction } = require('../config/db')
 const { renderContract, renderPreview, extractPlaceholders } = require('../utils/render')
-const { sendInviteEmail, sendContractEventEmail } = require('../utils/email')
+const { sendInviteEmail, sendContractEventEmail, sendSignOtpEmail } = require('../utils/email')
+const { generateOtp, saveOtp, verifyOtp: verifyOtpUtil } = require('../utils/otp')
 const { log, LOG }        = require('../utils/logger')
 const { notify, notifyParticipants } = require('../utils/notifier')
 const { addBlock }                   = require('../utils/blockchain')
 const { generateQRDataUrl }          = require('../utils/qrcode')
+const { safeErrorMessage }           = require('../utils/errors')
 // ── Invitation token tools
 const generateInviteToken = () => crypto.randomBytes(32).toString('hex')
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex')
+
+// ── Гарын үсгийн blob валидаци ────────────────────────
+// XSS халдлагаас сэргийлэх — зөвхөн base64-кодлогдсон data URL зөвшөөрнө.
+// (signContract endpoint-д шинээр оруулж буй гарын үсгийг шалгахад ашиглана)
+const SIGNATURE_BLOB_RE = /^data:image\/(png|jpeg|jpg|svg\+xml);base64,[A-Za-z0-9+/=]+$/
+const MAX_SIGNATURE_LEN = 500_000
+const isValidSignatureBlob = (blob) =>
+  typeof blob === 'string' &&
+  blob.length > 0 &&
+  blob.length <= MAX_SIGNATURE_LEN &&
+  SIGNATURE_BLOB_RE.test(blob)
+
+// ── placeholder_key валидаци ──────────────────────────
+// Хууртагдсан/санамсаргүй түлхүүрээр гарын үсэг хадгалахаас сэргийлнэ.
+// Жишээ: 'signature', 'seller.signature', 'buyer.signature', 'witness_signature'.
+// Маягт: жижиг үсэг, доогуур зураас, нэг түвшин dot (a.b). Урт 1-50.
+const PLACEHOLDER_KEY_RE = /^[a-z][a-z0-9_]{0,40}(\.[a-z][a-z0-9_]{0,40})?$/
+const isValidPlaceholderKey = (k) =>
+  typeof k === 'string' && PLACEHOLDER_KEY_RE.test(k)
 // ── JSON diff — Засварлахад өөрчлөгдсөн талбаруудыг л буцаана ──
 // { "seller.phone": { old: "99...", new: "88..." }, ... }
 // Массив (livestock гэх мэт) бол бүхлээр нь харьцуулж хадгална.
@@ -47,7 +69,7 @@ const getTemplates = async (req, res) => {
     )
     res.json({ data: result.rows })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -62,7 +84,7 @@ const getTemplateById = async (req, res) => {
     if (!result.rows[0]) return res.status(404).json({ message: 'Загвар олдсонгүй' })
     res.json({ data: result.rows[0] })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -107,47 +129,54 @@ const createContract = async (req, res) => {
     } else {
       enriched.buyer  = { ...(filled_data_json.buyer  || {}), ...userInfo }
     }
-    // Гэрээ үүсгэх — contract_number trigger-аар автомат орно
-    const contractRes = await query(
-      `INSERT INTO contracts (template_id, creator_id, title, filled_data_json, creator_role)
-       VALUES ($1,$2,$3,$4,$5)
-       RETURNING contract_id, contract_number, title, status, creator_role, created_at`,
-      [template_id, req.user.user_id, title || tmpl.name, enriched, creator_role]
-    )
-    const contract = contractRes.rows[0]
-
-    // contract_number авсны дараа render хийх — он/сар/өдөр-ийг meta-аар дамжуулна
+    // ── Атомар үүсгэлт ──────────────────────────────────
+    // contracts + contract_versions + contract_participants 3 INSERT-ийг
+    // нэг транзакцид багтаана. Аль нэг нь алдвал бүгд rollback хийгдэнэ —
+    // orphan contract эсвэл version-гүй contract үлдэхээс сэргийлнэ.
     const now = new Date()
-    const { rendered, hash } = renderContract(
-      tmpl.template_content,
-      tmpl.schema_json,
-      enriched,
-      {
-        contract_number: contract.contract_number,
-        year:  now.getFullYear().toString(),
-        month: (now.getMonth() + 1).toString(),
-        day:   now.getDate().toString(),
-      }
-    )
+    const { contract, rendered, versionId } = await withTransaction(async (db) => {
+      const contractRes = await db.query(
+        `INSERT INTO contracts (template_id, creator_id, title, filled_data_json, creator_role)
+         VALUES ($1,$2,$3,$4,$5)
+         RETURNING contract_id, contract_number, title, status, creator_role, created_at`,
+        [template_id, req.user.user_id, title || tmpl.name, enriched, creator_role]
+      )
+      const c = contractRes.rows[0]
 
-    // contract_versions — ганц row per contract (Migration 007)
-    const versionRes = await query(
-      `INSERT INTO contract_versions
-         (contract_id, rendered_content, rendered_hash)
-       VALUES ($1, $2, $3)
-       RETURNING version_id`,
-      [contract.contract_id, rendered, hash]
-    )
+      // contract_number авсны дараа render хийх — он/сар/өдөр-ийг meta-аар дамжуулна
+      const { rendered, hash } = renderContract(
+        tmpl.template_content,
+        tmpl.schema_json,
+        enriched,
+        {
+          contract_number: c.contract_number,
+          year:  now.getFullYear().toString(),
+          month: (now.getMonth() + 1).toString(),
+          day:   now.getDate().toString(),
+        }
+      )
 
-    // Creator-г CREATOR role-той participant болгон нэмэх
-    // Status='VIEWED' — бодит signature_blob орохоос өмнө 'SIGNED' болгохгүй.
-    // /sign endpoint signature оруулсны дараа trigger автоматаар SIGNED болгоно.
-    await query(
-      `INSERT INTO contract_participants
-         (contract_id, user_id, role, status)
-       VALUES ($1,$2,'CREATOR','VIEWED')`,
-      [contract.contract_id, req.user.user_id]
-    )
+      // contract_versions — ганц row per contract (Migration 007)
+      const versionRes = await db.query(
+        `INSERT INTO contract_versions
+           (contract_id, rendered_content, rendered_hash)
+         VALUES ($1, $2, $3)
+         RETURNING version_id`,
+        [c.contract_id, rendered, hash]
+      )
+
+      // Creator-г CREATOR role-той participant болгон нэмэх
+      // Status='VIEWED' — бодит signature_blob орохоос өмнө 'SIGNED' болгохгүй.
+      // /sign endpoint signature оруулсны дараа trigger автоматаар SIGNED болгоно.
+      await db.query(
+        `INSERT INTO contract_participants
+           (contract_id, user_id, role, status)
+         VALUES ($1,$2,'CREATOR','VIEWED')`,
+        [c.contract_id, req.user.user_id]
+      )
+
+      return { contract: c, rendered, versionId: versionRes.rows[0].version_id }
+    })
 
     await log({
       user_id: req.user.user_id,
@@ -162,12 +191,12 @@ const createContract = async (req, res) => {
       data: {
         ...contract,
         rendered_content: rendered,
-        version_id: versionRes.rows[0].version_id,
+        version_id: versionId,
       },
     })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -190,7 +219,7 @@ const getMyContracts = async (req, res) => {
     )
     res.json({ data: result.rows })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -208,6 +237,9 @@ const getContractById = async (req, res) => {
     )
     if (!partRes.rows[0]) return res.status(403).json({ message: 'Харах эрх байхгүй' })
 
+    // Хариу JSON-д буцаах my_status шинэчлэгдсэн утгаар явахын тулд reference барина
+    // (auto-fill block доор myParticipant.status-г өөрчилнө)
+
     // Гэрээний мэдээлэл — template_content-ийг ч авна (re-render-д хэрэгтэй)
     const cRes = await query(
       `SELECT c.*, t.name AS template_name, t.schema_json, t.template_content
@@ -218,6 +250,91 @@ const getContractById = async (req, res) => {
     )
     const contract = cRes.rows[0]
     if (!contract) return res.status(404).json({ message: 'Гэрээ олдсонгүй' })
+
+    // ── Auto-fill: үзэгчийн өөрийн талын мэдээлэл (name/phone/email/address)
+    //    хоосон бол user профайлаас дүүргээд contract-ыг re-render хийнэ ──
+    // Зөвхөн lock-гүй (DRAFT/SENT) үед, бичих ажил байвал л хийнэ (idempotent).
+    // CREATOR-д createContract аль хэдийн хийсэн боловч user профайл сүүлд
+    // шинэчлэгдсэн бол энэ хэсэг засна. COUNTERPARTY-н хувьд анхны үзэлтэд эхэлж дүүргэгдэнэ.
+    const myParticipant = partRes.rows[0]
+    if (
+      ['DRAFT', 'SENT'].includes(contract.status) &&
+      contract.template_content && contract.schema_json
+    ) {
+      try {
+        // Үзэгчийн талын role key — CREATOR бол creator_role, COUNTERPARTY бол эсрэг
+        const myRoleKey = myParticipant.role === 'CREATOR'
+          ? contract.creator_role
+          : (contract.creator_role === 'seller' ? 'buyer' : 'seller')
+
+        const cur = (contract.filled_data_json || {})[myRoleKey] || {}
+        const fullName = `${req.user.last_name || ''} ${req.user.first_name || ''}`.trim()
+
+        // Хоосон/null талбарыг л дүүргэнэ. Хэрэглэгчийн оруулсан утга байгаа бол хөндөхгүй.
+        const filled = { ...cur }
+        if (!filled.name    && fullName)         filled.name    = fullName
+        if (!filled.phone   && req.user.phone)   filled.phone   = req.user.phone
+        if (!filled.email   && req.user.email)   filled.email   = req.user.email
+        if (!filled.address && req.user.address) filled.address = req.user.address
+
+        // Жинхэнэ өөрчлөлт байгаа эсэхийг шалгана (idempotent guard)
+        const fieldsChanged = ['name', 'phone', 'email', 'address']
+          .some(k => (cur[k] || '') !== (filled[k] || ''))
+
+        if (fieldsChanged) {
+          const newData = {
+            ...(contract.filled_data_json || {}),
+            [myRoleKey]: filled,
+          }
+
+          const created = new Date(contract.created_at)
+          const { rendered, hash } = renderContract(
+            contract.template_content,
+            contract.schema_json,
+            newData,
+            {
+              contract_number: contract.contract_number,
+              year:  String(created.getFullYear()),
+              month: String(created.getMonth() + 1),
+              day:   String(created.getDate()),
+            }
+          )
+
+          await query(
+            `UPDATE contracts
+               SET filled_data_json = $1, updated_at = NOW()
+             WHERE contract_id = $2`,
+            [newData, id]
+          )
+          await query(
+            `UPDATE contract_versions
+               SET rendered_content = $1, rendered_hash = $2
+             WHERE contract_id = $3`,
+            [rendered, hash, id]
+          )
+
+          contract.filled_data_json = newData
+        }
+
+        // Counterparty анх удаа орж ирсэн бол status-ийг VIEWED болгох
+        // (status гэрчилгээний түүхэнд ач холбогдолтой)
+        if (
+          myParticipant.role === 'COUNTERPARTY' &&
+          ['INVITED', 'LINK_OPENED', 'REGISTERED'].includes(myParticipant.status)
+        ) {
+          await query(
+            `UPDATE contract_participants
+               SET status = 'VIEWED'
+             WHERE participant_id = $1`,
+            [myParticipant.participant_id]
+          )
+          myParticipant.status = 'VIEWED'
+        }
+      } catch (err) {
+        console.error('Profile auto-fill failed:', err.message)
+        // Auto-fill амжилтгүй ч main flow зогсохгүй
+      }
+    }
 
     // contract_versions — ганц row (Migration 007)
     const verRes = await query(
@@ -325,9 +442,14 @@ const getContractById = async (req, res) => {
       const displaySchema = { ...contract.schema_json, fields: [...baseFields, ...sigFields] }
 
       // filled_data-д nested signature blob тавих
+      // SafeString-ээр боож, signature_blob утгыг HTML-attribute escape хийнэ
+      // (XSS-аас сэргийлэх — хуучин буюу зөрчилтэй blob утга байсан ч аюулгүй).
       const displayData = JSON.parse(JSON.stringify(contract.filled_data_json || {}))
       sigRes.rows.forEach(s => {
-        const imgHtml = `<img src="${s.signature_blob}" alt="signature" style="max-height:60px;display:inline-block;vertical-align:middle"/>`
+        const escapedBlob = Handlebars.escapeExpression(s.signature_blob || '')
+        const imgHtml = new Handlebars.SafeString(
+          `<img src="${escapedBlob}" alt="signature" style="max-height:60px;display:inline-block;vertical-align:middle"/>`
+        )
         const parts = s.placeholder_key.split('.')
         if (parts.length === 2) {
           if (!displayData[parts[0]]) displayData[parts[0]] = {}
@@ -366,7 +488,7 @@ const getContractById = async (req, res) => {
       },
     })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 // ── Гэрээ засах (DRAFT үед, үүсгэгч) ──────────────────
@@ -380,10 +502,13 @@ const getContractById = async (req, res) => {
 const updateContract = async (req, res) => {
   try {
     const { id } = req.params
-    const { filled_data_json, title } = req.body
+    const { filled_data_json, title, note } = req.body
+    const cleanNote = typeof note === 'string'
+      ? note.trim().slice(0, 1000) || null
+      : null
 
     const cRes = await query(
-      `SELECT c.contract_id, c.contract_number, c.status, c.creator_id, c.current_turn,
+      `SELECT c.contract_id, c.contract_number, c.status, c.creator_id, c.creator_role, c.current_turn,
               c.filled_data_json, c.title,
               cp.role AS my_role,
               t.template_content, t.schema_json
@@ -419,7 +544,26 @@ const updateContract = async (req, res) => {
     }
 
     const oldData = contract.filled_data_json || {}
-    const newData = filled_data_json || oldData
+    // ── Counterparty privilege guard ──────────────────────
+    // Үүсгэгч (creator) бүх талбарыг засаж болно. Нөгөө тал (counterparty)
+    // зөвхөн өөрийн талын name/phone/email/address-г засна. Энэ нь
+    // counterparty seller-ийн өгөгдөл (нэр, үнэ гэх мэт) солихоос сэргийлнэ.
+    let newData
+    if (isCreator) {
+      newData = filled_data_json || oldData
+    } else {
+      const myRoleKey = contract.creator_role === 'seller' ? 'buyer' : 'seller'
+      const allowedKeys = ['name', 'phone', 'email', 'address']
+      const incoming = (filled_data_json && filled_data_json[myRoleKey]) || {}
+      const cleanCp = {}
+      for (const k of allowedKeys) {
+        if (incoming[k] != null) cleanCp[k] = String(incoming[k]).trim()
+      }
+      newData = {
+        ...oldData,
+        [myRoleKey]: { ...(oldData[myRoleKey] || {}), ...cleanCp },
+      }
+    }
 
     // ── Дахин render хийх ──────────────────────────────
     const { rendered, hash } = renderContract(
@@ -451,11 +595,11 @@ const updateContract = async (req, res) => {
 
     // ── Аудит — өөрчлөгдсөн талбаруудыг л log хийх ────
     const diff = computeJsonDiff(oldData, newData)
-    if (Object.keys(diff).length > 0) {
+    if (Object.keys(diff).length > 0 || cleanNote) {
       await query(
-        `INSERT INTO contract_edit_log (contract_id, edited_by, changed_fields)
-         VALUES ($1, $2, $3)`,
-        [id, req.user.user_id, JSON.stringify(diff)]
+        `INSERT INTO contract_edit_log (contract_id, edited_by, changed_fields, note)
+         VALUES ($1, $2, $3, $4)`,
+        [id, req.user.user_id, JSON.stringify(diff), cleanNote]
       )
     }
 
@@ -477,7 +621,7 @@ const updateContract = async (req, res) => {
     })
   } catch (err) {
     console.error('updateContract error:', err)
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -499,68 +643,189 @@ const sendContract = async (req, res) => {
     if (contract.creator_id !== req.user.user_id) return res.status(403).json({ message: 'Илгээх эрх байхгүй' })
     if (contract.status !== 'DRAFT') return res.status(400).json({ message: 'Аль хэдийн илгээгдсэн' })
 
-    const added = []
+    // Өөрийн имэйл/утас руу гэрээ илгээхээс сэргийлэх (self-invite block)
+    const myEmail = (req.user.email || '').toLowerCase()
+    const myPhone = req.user.phone || ''
     for (const p of participants || []) {
-      const partRes = await query(
-        `INSERT INTO contract_participants
-           (contract_id, user_id, role, invite_email, invite_phone, status, invited_at)
-         VALUES ($1,$2,$3,$4,$5,'INVITED',NOW())
-         ON CONFLICT DO NOTHING
-         RETURNING participant_id, role, invite_email`,
-        [id, p.user_id || null, p.role || 'COUNTERPARTY', p.email || null, p.phone || null]
-      )
-      if (partRes.rows[0]) {
-        added.push(partRes.rows[0])
-
-        // ── Invitation token үүсгэж participant_invitations-д хадгалах ──
-        const token     = generateInviteToken()
-        const tokenHash = hashToken(token)
-        await query(
-          `INSERT INTO participant_invitations
-             (participant_id, token_hash, sent_to_email, sent_to_phone)
-           VALUES ($1, $2, $3, $4)`,
-          [partRes.rows[0].participant_id, tokenHash, p.email || null, p.phone || null]
-        )
-
-        // Имейлээр урилга илгээх (token-той link)
-        if (p.email) {
-          const inviteUrl = `${process.env.FRONTEND_URL}/invite/${token}`
-          await sendInviteEmail({
-            to: p.email,
-            contractTitle: contract.title,
-            inviteUrl,
-            senderName: `${req.user.last_name} ${req.user.first_name}`,
-          }).catch(console.error)
-        }
-
-        // Бүртгэлтэй хэрэглэгч бол in-app мэдэгдэл
-        if (p.user_id) {
-          await notify({
-            user_id:     p.user_id,
-            contract_id: id,
-            title:       'Танд гэрээ ирлээ',
-            message:     `"${contract.title}" гэрээнд оролцохыг урилаа`,
-          })
-        }
+      const pEmail = (p.email || '').trim().toLowerCase()
+      const pPhone = (p.phone || '').trim()
+      if (myEmail && pEmail === myEmail) {
+        return res.status(400).json({ message: 'Өөрийн имэйл рүү гэрээ илгээх боломжгүй' })
+      }
+      if (myPhone && pPhone === myPhone) {
+        return res.status(400).json({ message: 'Өөрийн утсан дугаар руу гэрээ илгээх боломжгүй' })
+      }
+      if (p.user_id && p.user_id === req.user.user_id) {
+        return res.status(400).json({ message: 'Өөрийгөө оролцогчоор нэмэх боломжгүй' })
       }
     }
 
-    // Contract-г SENT болгох + ээлж нөгөө талд шилжих
-    await query(
-      `UPDATE contracts
-         SET status       = 'SENT',
-             current_turn = 'COUNTERPARTY',
-             sent_at      = NOW(),
-             updated_at   = NOW()
-       WHERE contract_id = $1`,
+    // Хамгийн ихдээ 2 оролцогч (CREATOR + 1 COUNTERPARTY). WITNESS дэмжлэггүй.
+    const counterpartyRequests = (participants || []).filter(
+      p => (p.role || 'COUNTERPARTY') === 'COUNTERPARTY'
+    )
+    if (counterpartyRequests.length > 1) {
+      return res.status(400).json({ message: 'Гэрээнд зөвхөн 1 нөгөө тал нэмэх боломжтой' })
+    }
+    const existingCpRes = await query(
+      `SELECT COUNT(*) AS cnt FROM contract_participants
+       WHERE contract_id = $1 AND role = 'COUNTERPARTY'`,
       [id]
     )
+    const existingCpCount = parseInt(existingCpRes.rows[0]?.cnt || '0', 10)
+    if (existingCpCount + counterpartyRequests.length > 1) {
+      return res.status(400).json({ message: 'Энэ гэрээнд аль хэдийн нөгөө тал нэмэгдсэн байна' })
+    }
+
+    // ── Атомар илгээлт ────────────────────────────────
+    // participants + invitations + contract status UPDATE-ийг нэг транзакцид.
+    // Аль нэг алдвал бүгд rollback — half-sent контракт үлдэхгүй.
+    // Имэйл болон in-app notification-ийг commit хийсний дараа явуулна
+    // (DB rollback хийгдэх үед имэйл явуулсан байгаа зөрчилөөс сэргийлэх).
+    const emailQueue  = []
+    const notifyQueue = []
+    const added = await withTransaction(async (db) => {
+      const addedRows = []
+      for (const p of participants || []) {
+        const partRes = await db.query(
+          `INSERT INTO contract_participants
+             (contract_id, user_id, role, invite_email, invite_phone, status, invited_at)
+           VALUES ($1,$2,$3,$4,$5,'INVITED',NOW())
+           ON CONFLICT DO NOTHING
+           RETURNING participant_id, role, invite_email`,
+          [id, p.user_id || null, p.role || 'COUNTERPARTY', p.email || null, p.phone || null]
+        )
+        if (partRes.rows[0]) {
+          addedRows.push(partRes.rows[0])
+
+          // ── Invitation token үүсгэж participant_invitations-д хадгалах ──
+          const token     = generateInviteToken()
+          const tokenHash = hashToken(token)
+          await db.query(
+            `INSERT INTO participant_invitations
+               (participant_id, token_hash, sent_to_email, sent_to_phone)
+             VALUES ($1, $2, $3, $4)`,
+            [partRes.rows[0].participant_id, tokenHash, p.email || null, p.phone || null]
+          )
+
+          if (p.email)   emailQueue.push({ to: p.email, token })
+          if (p.user_id) notifyQueue.push({ user_id: p.user_id })
+        }
+      }
+
+      // Contract-г SENT болгох + ээлж нөгөө талд шилжих
+      await db.query(
+        `UPDATE contracts
+           SET status       = 'SENT',
+               current_turn = 'COUNTERPARTY',
+               sent_at      = NOW(),
+               updated_at   = NOW()
+         WHERE contract_id = $1`,
+        [id]
+      )
+
+      return addedRows
+    })
+
+    // ── Имэйл болон notification — commit-ийн дараа ──
+    const senderName = `${req.user.last_name} ${req.user.first_name}`
+    for (const e of emailQueue) {
+      // Token-г URL fragment-д (# дараа) тавьсанаар Referer / server лог /
+      // Slack OG preview гэх мэт газруудад token leak хийгдэхгүй.
+      const inviteUrl = `${process.env.FRONTEND_URL}/invite#token=${e.token}`
+      await sendInviteEmail({
+        to: e.to,
+        contractTitle: contract.title,
+        inviteUrl,
+        senderName,
+      }).catch(console.error)
+    }
+    for (const n of notifyQueue) {
+      await notify({
+        user_id:     n.user_id,
+        contract_id: id,
+        title:       'Танд гэрээ ирлээ',
+        message:     `"${contract.title}" гэрээнд оролцохыг урилаа`,
+      })
+    }
 
     await log({ user_id: req.user.user_id, action: LOG.CONTRACT_SEND, entity_type: 'contract', entity_id: id, req })
     res.json({ message: 'Гэрээ илгээгдлээ', data: { participants: added } })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
+}
+
+// ── Гарын үсгийн OTP recipient scope ─────────────────
+// "sign:<email>:<contractId>" — энэ форматаар хадгалснаар бүртгэлийн
+// OTP-той зөрөлдөхгүй (saveOtp нь recipient-аар хайдаг). Нэг гэрээ нь
+// нөгөөг хүчингүй болгохгүй.
+const buildSignOtpRecipient = (email, contractId) =>
+  `sign:${String(email || '').toLowerCase()}:${contractId}`
+
+// ── POST /api/contracts/:id/sign/request-otp ─────────
+// Гарын үсэг зурахаас өмнө хэрэглэгчийн НЭВТЭРСЭН имэйл рүү OTP илгээнэ.
+// Аюулгүй байдал:
+//   • req.user.email-ийг хэрэглэнэ (хэрэглэгч өөр имэйл оруулах боломжгүй)
+//   • Зөвхөн оролцогч өөрөө хүсэх боломжтой
+//   • DRAFT/SENT статуст л OTP илгээнэ — CANCELLED/COMPLETED-д үгүй
+//   • Аль хэдийн SIGNED participant дахин OTP хүсэх боломжгүй
+//   • Rate limit middleware-ээр 15 минутад 5 удаа хүртэл
+const requestSignOtp = async (req, res) => {
+  try {
+    const { id } = req.params
+
+    if (!req.user.email) {
+      return res.status(400).json({ message: 'Имэйл хаяг бүртгэлгүй байна' })
+    }
+
+    // 1. Оролцогч + Гэрээний статус шалгах нэг queryd
+    const partRes = await query(
+      `SELECT cp.participant_id, cp.role, cp.status AS my_status, c.status AS contract_status, c.title
+       FROM contract_participants cp
+       JOIN contracts c ON c.contract_id = cp.contract_id
+       WHERE cp.contract_id = $1 AND cp.user_id = $2`,
+      [id, req.user.user_id]
+    )
+    const part = partRes.rows[0]
+    if (!part) return res.status(403).json({ message: 'Энэ гэрээнд оролцогч биш' })
+    if (part.my_status === 'SIGNED') {
+      return res.status(400).json({ message: 'Та аль хэдийн гарын үсэг зурсан' })
+    }
+    if (!['DRAFT', 'SENT'].includes(part.contract_status)) {
+      return res.status(400).json({ message: 'Энэ статуст гарын үсэг зурах боломжгүй' })
+    }
+
+    // 2. OTP үүсгээд илгээнэ.
+    // Channel 'EMAIL' хэрэглэнэ — recipient prefix ("sign:...:contractId") нь
+    // бүртгэлийн OTP-аас тусгаарлахад хангалттай (saveOtp recipient-аар хайдаг).
+    const code = generateOtp()
+    const recipient = buildSignOtpRecipient(req.user.email, id)
+    await saveOtp(recipient, code, 'EMAIL', 5)
+    await sendSignOtpEmail(req.user.email, code, part.title)
+
+    await log({
+      user_id: req.user.user_id,
+      action: 'CONTRACT_SIGN_OTP_REQUEST',
+      entity_type: 'contract',
+      entity_id: id,
+      req,
+    })
+
+    res.json({ message: 'OTP код имэйл рүү илгээгдлээ', email_masked: maskEmail(req.user.email) })
+  } catch (err) {
+    console.error('requestSignOtp:', err)
+    res.status(400).json({ message: safeErrorMessage(err) })
+  }
+}
+
+// Имэйлийн ихэнхийг далдалж буцаах — `b***@gmail.com`
+const maskEmail = (email) => {
+  if (!email || typeof email !== 'string') return ''
+  const [name, domain] = email.split('@')
+  if (!name || !domain) return ''
+  const head = name.slice(0, 1)
+  return `${head}${'*'.repeat(Math.max(name.length - 1, 2))}@${domain}`
 }
 
 // ── Гарын үсэг зурах ─────────────────────────────────
@@ -568,18 +833,55 @@ const sendContract = async (req, res) => {
 const signContract = async (req, res) => {
   try {
     const { id } = req.params
-    const { signature_blob, placeholder_key = 'signature' } = req.body
+    const { signature_blob, placeholder_key = 'signature', otp_code } = req.body
     if (!signature_blob) return res.status(400).json({ message: 'Гарын үсэг шаардлагатай' })
+    // XSS-аас сэргийлэх — зөвхөн base64-data URL формат зөвшөөрнө
+    if (!isValidSignatureBlob(signature_blob)) {
+      return res.status(400).json({ message: 'Гарын үсгийн формат буруу эсвэл хэт том' })
+    }
+    // placeholder_key валидаци — санамсаргүй/хууртагдсан түлхүүр хааж
+    // 'phantom' гарын үсэг үүсгэхээс сэргийлнэ
+    if (!isValidPlaceholderKey(placeholder_key)) {
+      return res.status(400).json({ message: 'Гарын үсгийн талбарын нэр буруу' })
+    }
+    // OTP — гарын үсэг зурахын өмнө заавал шаардлагатай.
+    // Format: яг 6 оронтой тоо (DoS-аас сэргийлж урт оролтыг блоклоно)
+    if (!otp_code || typeof otp_code !== 'string' || !/^\d{6}$/.test(otp_code)) {
+      return res.status(400).json({ message: 'OTP код 6 оронтой тоо байх ёстой' })
+    }
 
-    // Оролцогч шалгах
+    // Оролцогч + контрактын статусыг нэг хүсэлтэд шалгана
     const partRes = await query(
-      `SELECT participant_id, role, status FROM contract_participants
-       WHERE contract_id = $1 AND user_id = $2`,
+      `SELECT cp.participant_id, cp.role, cp.status AS my_status, c.status AS contract_status
+       FROM contract_participants cp
+       JOIN contracts c ON c.contract_id = cp.contract_id
+       WHERE cp.contract_id = $1 AND cp.user_id = $2`,
       [id, req.user.user_id]
     )
     const part = partRes.rows[0]
     if (!part) return res.status(403).json({ message: 'Энэ гэрээнд оролцогч биш' })
-    if (part.status === 'SIGNED') return res.status(400).json({ message: 'Аль хэдийн гарын үсэг зурсан' })
+    if (part.my_status === 'SIGNED') return res.status(400).json({ message: 'Аль хэдийн гарын үсэг зурсан' })
+
+    // Цуцалсан/баталгаажсан/хаагдсан гэрээг дахин зурах боломжгүй
+    if (!['DRAFT', 'SENT'].includes(part.contract_status)) {
+      return res.status(400).json({ message: 'Энэ статуст гарын үсэг зурах боломжгүй' })
+    }
+
+    // OTP шалгах — req.user.email-ээр scope хийсэн recipient
+    if (!req.user.email) {
+      return res.status(400).json({ message: 'Имэйл хаяг бүртгэлгүй байна' })
+    }
+    const otpRecipient = buildSignOtpRecipient(req.user.email, id)
+    const otpResult = await verifyOtpUtil(otpRecipient, otp_code)
+    if (!otpResult.valid) {
+      const msgs = {
+        NOT_FOUND:    'OTP код олдсонгүй. Шинэ OTP хүсэлт явуулна уу',
+        EXPIRED:      'OTP кодын хугацаа дууссан. Шинэ OTP хүсэлт явуулна уу',
+        MAX_ATTEMPTS: 'OTP оролдлогын хязгаар хэтэрлээ. Шинэ OTP хүсэлт явуулна уу',
+        WRONG_CODE:   'OTP код буруу байна',
+      }
+      return res.status(400).json({ message: msgs[otpResult.reason] || 'OTP буруу' })
+    }
 
     // contract_versions — ганц row per contract (Migration 007)
     const verRes = await query(
@@ -674,7 +976,7 @@ const signContract = async (req, res) => {
       },
     })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -707,7 +1009,10 @@ const confirmContract = async (req, res) => {
     // → after_confirmation_insert trigger: status = COMPLETED
 
     // ── Малын гүйлгээ хадгалах ──────────────────────────
-    // creator_role-аас seller/buyer-ийг тогтоож livestock_transactions-д INSERT
+    // creator_role-аас seller/buyer-ийг тогтоож livestock_transactions-д INSERT.
+    // Бүх мөрийг нэг транзакцид: дунд алдвал бүгд rollback (хагас гүйлгээ
+    // үлдэхээс сэргийлнэ). Гэрээ COMPLETED хэвээр — статистик дутах нь
+    // main flow-ыг хаахгүй (анхны бизнес логик хадгалагдсан).
     try {
       const partRes = await query(
         `SELECT user_id, role FROM contract_participants
@@ -720,20 +1025,22 @@ const confirmContract = async (req, res) => {
 
       const livestock = contract.filled_data_json?.livestock || []
       if (sellerId && buyerId && livestock.length > 0) {
-        for (const it of livestock) {
-          const cnt   = parseInt(it.count) || 0
-          const price = parseFloat(it.price_per_unit) || 0
-          const type  = (it.livestock_type || '').toString().trim()
-          if (cnt > 0 && type) {
-            await query(
-              `INSERT INTO livestock_transactions
-                 (contract_id, seller_id, buyer_id, livestock_type,
-                  count, price_per_unit, total_amount)
-               VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-              [id, sellerId, buyerId, type, cnt, price, cnt * price]
-            )
+        await withTransaction(async (db) => {
+          for (const it of livestock) {
+            const cnt   = parseInt(it.count) || 0
+            const price = parseFloat(it.price_per_unit) || 0
+            const type  = (it.livestock_type || '').toString().trim()
+            if (cnt > 0 && type) {
+              await db.query(
+                `INSERT INTO livestock_transactions
+                   (contract_id, seller_id, buyer_id, livestock_type,
+                    count, price_per_unit, total_amount)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+                [id, sellerId, buyerId, type, cnt, price, cnt * price]
+              )
+            }
           }
-        }
+        })
       }
     } catch (err) {
       console.error('Livestock INSERT failed:', err.message)
@@ -784,7 +1091,7 @@ const confirmContract = async (req, res) => {
 
     res.json({ message: 'Гэрээ баталгаажлаа' })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -910,14 +1217,14 @@ const fillCounterpartyData = async (req, res) => {
     })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
 // ══════════════════════════════════════════════════════
 // returnContract — Negotiation flow: засаад нөгөө талд буцаах
 // POST /api/contracts/:id/return
-// Body: { filled_data_json?: {...} }
+// Body: { filled_data_json?: {...}, note?: string }
 //
 // Ажиллах нөхцөл:
 //   • Гэрээний статус = SENT
@@ -926,18 +1233,22 @@ const fillCounterpartyData = async (req, res) => {
 //
 // Үйлдэл:
 //   • filled_data_json өөрчилсөн бол: dahin render → contract_versions UPDATE
-//     + contract_edit_log diff INSERT
+//     + contract_edit_log diff INSERT (note-той хамт)
+//   • Өөрчлөлтгүй ч note байгаа бол note-only лог үлдээнэ
 //   • current_turn → нөгөө талд шилжинэ
-//   • Нөгөө талд in-app + email notification
+//   • Нөгөө талд in-app (note-г preview-д) + email notification
 // ══════════════════════════════════════════════════════
 const returnContract = async (req, res) => {
   try {
     const { id } = req.params
-    const { filled_data_json } = req.body
+    const { filled_data_json, note } = req.body
+    const cleanNote = typeof note === 'string'
+      ? note.trim().slice(0, 1000) || null
+      : null
 
     // Гэрээ + миний participant role-ийг шалгах
     const cRes = await query(
-      `SELECT c.contract_id, c.contract_number, c.status, c.creator_id,
+      `SELECT c.contract_id, c.contract_number, c.status, c.creator_id, c.creator_role,
               c.current_turn, c.title, c.filled_data_json,
               cp.participant_id, cp.role AS my_role,
               t.template_content, t.schema_json
@@ -965,11 +1276,30 @@ const returnContract = async (req, res) => {
     }
 
     const oldData = contract.filled_data_json || {}
-    const newData = filled_data_json || oldData
+    // ── Counterparty privilege guard ──────────────────────
+    // updateContract-тай ижил логик: counterparty зөвхөн өөрийн талын
+    // name/phone/email/address-г засна. Creator бүх талбарыг засаж болно.
+    const isCreator = contract.creator_id === req.user.user_id
+    let newData
+    if (isCreator) {
+      newData = filled_data_json || oldData
+    } else {
+      const myRoleKey = contract.creator_role === 'seller' ? 'buyer' : 'seller'
+      const allowedKeys = ['name', 'phone', 'email', 'address']
+      const incoming = (filled_data_json && filled_data_json[myRoleKey]) || {}
+      const cleanCp = {}
+      for (const k of allowedKeys) {
+        if (incoming[k] != null) cleanCp[k] = String(incoming[k]).trim()
+      }
+      newData = {
+        ...oldData,
+        [myRoleKey]: { ...(oldData[myRoleKey] || {}), ...cleanCp },
+      }
+    }
     const diff    = computeJsonDiff(oldData, newData)
     const hasChanges = Object.keys(diff).length > 0
 
-    // ── Өөрчлөлт байвал re-render + version UPDATE + edit_log ──
+    // ── Өөрчлөлт байвал re-render + version UPDATE ──
     if (hasChanges) {
       if (contract.template_content && contract.schema_json) {
         const { rendered, hash } = renderContract(
@@ -992,11 +1322,14 @@ const returnContract = async (req, res) => {
          WHERE contract_id = $2`,
         [newData, id]
       )
+    }
 
+    // ── edit_log: өөрчлөлт ЭСВЭЛ зөвхөн note бичсэн бол үлдээнэ ──
+    if (hasChanges || cleanNote) {
       await query(
-        `INSERT INTO contract_edit_log (contract_id, edited_by, changed_fields)
-         VALUES ($1, $2, $3)`,
-        [id, req.user.user_id, JSON.stringify(diff)]
+        `INSERT INTO contract_edit_log (contract_id, edited_by, changed_fields, note)
+         VALUES ($1, $2, $3, $4)`,
+        [id, req.user.user_id, JSON.stringify(diff), cleanNote]
       )
     }
 
@@ -1039,13 +1372,14 @@ const returnContract = async (req, res) => {
     const contractUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/contracts/${id}`
 
     if (other?.user_id) {
+      const baseMessage = hasChanges
+        ? `${actorName} "${contract.title}" гэрээнд өөрчлөлт оруулсан`
+        : `${actorName} "${contract.title}" гэрээг танд буцаалаа`
       await notify({
         user_id:     other.user_id,
         contract_id: id,
         title:       hasChanges ? 'Гэрээнд өөрчлөлт орлоо' : 'Гэрээг танд буцаалаа',
-        message:     hasChanges
-          ? `${actorName} "${contract.title}" гэрээнд өөрчлөлт оруулсан`
-          : `${actorName} "${contract.title}" гэрээг танд буцаалаа`,
+        message:     cleanNote ? `${baseMessage} — "${cleanNote}"` : baseMessage,
       })
     }
     const otherEmail = other?.user_email || other?.invite_email
@@ -1056,6 +1390,7 @@ const returnContract = async (req, res) => {
         actorName,
         eventType:     hasChanges ? 'EDITED' : 'RETURNED',
         contractUrl,
+        note:          cleanNote,
       }).catch(err => console.error('return email failed:', err.message))
     }
 
@@ -1064,11 +1399,12 @@ const returnContract = async (req, res) => {
       data: {
         current_turn: nextTurn,
         changed_fields_count: Object.keys(diff).length,
+        note: cleanNote,
       },
     })
   } catch (err) {
     console.error('returnContract error:', err)
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -1162,7 +1498,7 @@ const verifyInviteToken = async (req, res) => {
     })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -1172,42 +1508,87 @@ const cancelContract = async (req, res) => {
   try {
     const { id } = req.params
     const { reason } = req.body
+    // Шалтгааны урт хязгаарлах (DB-ийн text-ийг unbounded гэж тавьсан ч
+    // лог/имэйлд харагдах учир логик хязгаартай)
+    const cleanReason = typeof reason === 'string'
+      ? reason.trim().slice(0, 500) || null
+      : null
 
+    // Гэрээ + миний оролцооны мэдээллийг нэг хүсэлтэд авна.
+    // ОНЦ ЧУХАЛ: cp.user_id = $2 нийт зэрэгцээ guard биш — JOIN нь хэрэв
+    // хэрэглэгч оролцогч биш бол row буцаахгүй (LEFT JOIN биш). Энэ нь
+    // permission-ийн нэг хэсэг.
     const cRes = await query(
-      `SELECT contract_id, status, creator_id FROM contracts WHERE contract_id = $1`,
-      [id]
+      `SELECT c.contract_id, c.status, c.creator_id, c.title,
+              cp.role AS my_role
+       FROM contracts c
+       JOIN contract_participants cp
+         ON cp.contract_id = c.contract_id AND cp.user_id = $2
+       WHERE c.contract_id = $1`,
+      [id, req.user.user_id]
     )
     const contract = cRes.rows[0]
-    if (!contract) return res.status(404).json({ message: 'Гэрээ олдсонгүй' })
-    if (contract.creator_id !== req.user.user_id) return res.status(403).json({ message: 'Цуцлах эрх байхгүй' })
-    if (['COMPLETED', 'CANCELLED'].includes(contract.status)) {
-      return res.status(400).json({ message: 'Энэ гэрээг цуцлах боломжгүй' })
+    if (!contract) {
+      // Гэрээ байхгүй ЭСВЭЛ хэрэглэгч оролцогч биш — мэдээлэл leak болохгүй
+      return res.status(403).json({ message: 'Цуцлах эрх байхгүй' })
+    }
+
+    // ── Цуцлах боломжтой статусуудыг шалгах ────────────
+    // FULLY_SIGNED = хоёр тал гарын үсэг зурсан → цуцлах БОЛОМЖГҮЙ.
+    // COMPLETED/CLOSED/CANCELLED/DECLINED/EXPIRED = аль хэдийн terminal.
+    // DRAFT/SENT = ядаж нэг тал зураагүй → цуцлах боломжтой.
+    const blocked = ['FULLY_SIGNED', 'COMPLETED', 'CANCELLED', 'CLOSED', 'DECLINED', 'EXPIRED']
+    if (blocked.includes(contract.status)) {
+      const msg = contract.status === 'FULLY_SIGNED'
+        ? 'Хоёр тал гарын үсэг зурсан гэрээг цуцлах боломжгүй'
+        : 'Энэ гэрээг цуцлах боломжгүй'
+      return res.status(400).json({ message: msg })
     }
 
     const oldStatus = contract.status
-    await query(
-      `UPDATE contracts SET status = 'CANCELLED', updated_at = NOW() WHERE contract_id = $1`,
-      [id]
-    )
-    await query(
-      `INSERT INTO contract_status_history (contract_id, from_status, to_status, changed_by, reason)
-       VALUES ($1,$2,'CANCELLED',$3,$4)`,
-      [id, oldStatus, req.user.user_id, reason || null]
-    )
 
-    await log({ user_id: req.user.user_id, action: LOG.CONTRACT_CANCEL, entity_type: 'contract', entity_id: id, req })
+    // ── Атомар цуцлалт + race guard ───────────────────
+    // UPDATE-д WHERE status = $oldStatus оруулсанаар: хэрэв энэ хооронд
+    // нөгөө тал гарын үсэг зурж FULLY_SIGNED болсон бол rowCount = 0
+    // буцаагдана. Бид rollback хийнэ.
+    let cancelled = false
+    await withTransaction(async (db) => {
+      const upd = await db.query(
+        `UPDATE contracts
+            SET status = 'CANCELLED', updated_at = NOW()
+          WHERE contract_id = $1 AND status = $2
+        RETURNING contract_id`,
+        [id, oldStatus]
+      )
+      if (upd.rowCount === 0) {
+        // Зэрэгцээ статус өөрчлөгдсөн — цуцлах боломжгүй болсон
+        return
+      }
+      await db.query(
+        `INSERT INTO contract_status_history (contract_id, from_status, to_status, changed_by, reason)
+         VALUES ($1,$2,'CANCELLED',$3,$4)`,
+        [id, oldStatus, req.user.user_id, cleanReason]
+      )
+      cancelled = true
+    })
+
+    if (!cancelled) {
+      return res.status(409).json({ message: 'Гэрээний статус өөрчлөгдсөн тул цуцлах боломжгүй' })
+    }
+
+    await log({ user_id: req.user.user_id, action: LOG.CONTRACT_CANCEL, entity_type: 'contract', entity_id: id, req,
+                details: { from_status: oldStatus, cancelled_by_role: contract.my_role } })
 
     // Бүх оролцогчдод (цуцалсан хүнээс бусад) мэдэгдэх
-    const titleRes = await query(`SELECT title FROM contracts WHERE contract_id = $1`, [id])
     await notifyParticipants(id, {
       title:        'Гэрээ цуцлагдлаа',
-      message:      `"${titleRes.rows[0]?.title || 'Гэрээ'}" гэрээг цуцалсан${reason ? `: ${reason}` : ''}`,
+      message:      `"${contract.title || 'Гэрээ'}" гэрээг цуцаллаа${cleanReason ? `: ${cleanReason}` : ''}`,
       exceptUserId: req.user.user_id,
     })
 
     res.json({ message: 'Гэрээ цуцлагдлаа' })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -1264,7 +1645,7 @@ const closeContract = async (req, res) => {
     res.json({ message: 'Гэрээ хаагдлаа' })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -1333,7 +1714,7 @@ const submitRating = async (req, res) => {
     res.json({ message: 'Үнэлгээ хадгалагдлаа', data: insRes.rows[0] })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -1368,7 +1749,45 @@ const getContractRatings = async (req, res) => {
     )
     res.json({ data: result.rows })
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// ӨӨРЧЛӨЛТИЙН ТҮҮХ (edit log)
+// GET /api/contracts/:id/edit-log
+// → contract_edit_log + edited_by-н user мэдээлэл, шинэ нь эхэнд
+// → Зөвхөн тухайн гэрээний оролцогч
+// ══════════════════════════════════════════════════════
+const getEditLog = async (req, res) => {
+  try {
+    const { id } = req.params
+
+    // Оролцогч эсэх шалгах
+    const partRes = await query(
+      `SELECT 1 FROM contract_participants
+       WHERE contract_id = $1 AND user_id = $2`,
+      [id, req.user.user_id]
+    )
+    if (!partRes.rows[0]) return res.status(403).json({ message: 'Харах эрх байхгүй' })
+
+    const result = await query(
+      `SELECT el.edit_id, el.contract_id, el.edited_by, el.changed_fields,
+              el.note, el.edited_at,
+              u.first_name, u.last_name,
+              cp.role AS editor_role
+       FROM contract_edit_log el
+       LEFT JOIN users u  ON u.user_id = el.edited_by
+       LEFT JOIN contract_participants cp
+         ON cp.contract_id = el.contract_id AND cp.user_id = el.edited_by
+       WHERE el.contract_id = $1
+       ORDER BY el.edited_at DESC`,
+      [id]
+    )
+    res.json({ data: result.rows })
+  } catch (err) {
+    console.error('getEditLog error:', err)
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -1376,6 +1795,16 @@ const getContractRatings = async (req, res) => {
 // ATTACHMENT — Гэрээний хавсралт материал (Cloudinary дээр)
 // ══════════════════════════════════════════════════════
 const { deleteFromCloudinary } = require('../utils/cloudinary')
+
+// Cloudinary resource_type-ийг mimetype-аас тогтооно.
+// PDF болон бүх зураг 'image' (Cloudinary PDF-ийг image-р render хийдэг).
+// Зөвхөн DOC/DOCX 'raw' болно.
+const resourceTypeFor = (mime) => {
+  if (!mime) return 'raw'
+  if (mime.startsWith('image/')) return 'image'
+  if (mime === 'application/pdf') return 'image'
+  return 'raw'
+}
 
 // POST /api/contracts/:id/attachments
 // multer-cloudinary middleware-ээр файл upload болсон → req.file
@@ -1399,8 +1828,7 @@ const uploadAttachment = async (req, res) => {
     )
     const contract = cRes.rows[0]
     if (!contract) {
-      await deleteFromCloudinary(req.file.filename,
-        req.file.mimetype?.startsWith('image/') ? 'image' : 'raw')
+      await deleteFromCloudinary(req.file.filename, resourceTypeFor(req.file.mimetype))
       return res.status(404).json({ message: 'Гэрээ олдсонгүй эсвэл эрх байхгүй' })
     }
 
@@ -1410,8 +1838,7 @@ const uploadAttachment = async (req, res) => {
       [id]
     )
     if (sigRes.rows[0]) {
-      await deleteFromCloudinary(req.file.filename,
-        req.file.mimetype?.startsWith('image/') ? 'image' : 'raw')
+      await deleteFromCloudinary(req.file.filename, resourceTypeFor(req.file.mimetype))
       return res.status(400).json({ message: 'Гарын үсэг зурагдсан гэрээнд хавсралт нэмж болохгүй' })
     }
 
@@ -1455,10 +1882,9 @@ const uploadAttachment = async (req, res) => {
   } catch (err) {
     console.error('uploadAttachment:', err)
     if (req.file?.filename) {
-      await deleteFromCloudinary(req.file.filename,
-        req.file.mimetype?.startsWith('image/') ? 'image' : 'raw')
+      await deleteFromCloudinary(req.file.filename, resourceTypeFor(req.file.mimetype))
     }
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -1490,8 +1916,7 @@ const deleteAttachment = async (req, res) => {
     }
 
     // Cloudinary-аас устгах
-    const resourceType = att.file_type?.startsWith('image/') ? 'image' : 'raw'
-    await deleteFromCloudinary(att.public_id, resourceType)
+    await deleteFromCloudinary(att.public_id, resourceTypeFor(att.file_type))
 
     // DB-ээс устгах
     await query(
@@ -1510,18 +1935,20 @@ const deleteAttachment = async (req, res) => {
     res.json({ message: 'Хавсралт устгагдлаа' })
   } catch (err) {
     console.error('deleteAttachment:', err)
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
 module.exports = {
   getTemplates, getTemplateById,
   createContract, getMyContracts, getContractById,
-  updateContract, sendContract, signContract,
+  updateContract, sendContract,
+  requestSignOtp, signContract,
   confirmContract, cancelContract, closeContract,
   submitRating, getContractRatings,
   verifyInviteToken,
   fillCounterpartyData,
   returnContract,
+  getEditLog,
   uploadAttachment, deleteAttachment,
 }

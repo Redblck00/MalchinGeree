@@ -1,10 +1,11 @@
-const bcrypt    = require('bcryptjs')
+﻿const bcrypt    = require('bcryptjs')
 const { query } = require('../config/db')
 const { signToken }                                   = require('../utils/jwt')
 const { generateOtp, saveOtp, verifyOtp,
         findPendingByPhone }                          = require('../utils/otp')
 const { sendOtpEmail }                                = require('../utils/email')
 const { log, LOG }                                    = require('../utils/logger')
+const { safeErrorMessage }                            = require('../utils/errors')
 
 // ── POST /api/auth/register ───────────────────────────
 // Хэрэглэгчийг DB-д ОРУУЛАХГҮЙ — OTP баталгаажсан үед л үүснэ
@@ -13,6 +14,11 @@ const register = async (req, res) => {
     const { first_name, last_name, phone, email, password } = req.body
     if (!first_name || !last_name || !phone || !email || !password) {
       return res.status(400).json({ message: 'Бүх талбарыг бөглөнө үү' })
+    }
+    // Bcrypt 72 байтаас урт нууц үгийг яаж ч хайчилдаг тул хязгаарлая.
+    // 10MB-н нууц үгээр bcrypt-ийг блоклож DoS хийхээс мөн сэргийлнэ.
+    if (typeof password !== 'string' || password.length < 6 || password.length > 72) {
+      return res.status(400).json({ message: 'Нууц үг 6-72 тэмдэгттэй байх ёстой' })
     }
 
     // users хүснэгтэд аль хэдийн бүртгэлтэй эсэх шалгах
@@ -40,7 +46,7 @@ const register = async (req, res) => {
     res.status(201).json({ message: 'OTP имейл рүү илгээгдлээ', phone })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -118,7 +124,7 @@ const verifyOtpHandler = async (req, res) => {
     })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -128,6 +134,10 @@ const login = async (req, res) => {
     const { phone, password } = req.body
     if (!phone || !password) {
       return res.status(400).json({ message: 'Утас болон нууц үг шаардлагатай' })
+    }
+    // DoS-аас сэргийлэх — bcrypt.compare-д урт нууц үг өгөхгүй
+    if (typeof password !== 'string' || password.length > 72) {
+      return res.status(400).json({ message: 'Утас эсвэл нууц үг буруу' })
     }
 
     const result = await query(
@@ -168,7 +178,7 @@ const login = async (req, res) => {
     res.json({ message: 'Амжилттай нэвтэрлээ', token, user: safeUser })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -200,7 +210,7 @@ const resendOtp = async (req, res) => {
     res.json({ message: 'OTP дахин илгээгдлээ' })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: err.message })
+    res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 

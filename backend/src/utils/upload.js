@@ -1,8 +1,9 @@
-const multer = require('multer')
+﻿const multer = require('multer')
 const path   = require('path')
 const fs     = require('fs')
 const { CloudinaryStorage } = require('multer-storage-cloudinary')
 const { cloudinary }        = require('./cloudinary')
+const { safeErrorMessage }  = require('./errors')
 
 // ── Хавтас үүсгэх helper ──────────────────────────────
 const mkdirp = (dir) => {
@@ -66,17 +67,22 @@ const templateUpload = multer({
 
 // ── Гэрээний хавсралт — Cloudinary дээр хадгална ──────
 // PDF/JPG/PNG, 10MB. Cloudinary нь URL шууд буцаана.
+// IMPORTANT: PDF-г 'image' resource_type-аар upload хийнэ — Cloudinary PDF-ийг
+// image-ийн адил render хийдэг (browser inline preview, .pdf extension URL-д).
+// DOC/DOCX зөвхөн 'raw'-аар л хадгалж болно.
+// Хэрэв Cloudinary console дээр "Restricted media types"-д PDF/ZIP байвал
+// тэр тохиргоог салгана уу: Console → Settings → Security.
 const attachmentStorage = new CloudinaryStorage({
   cloudinary,
   params: (req, file) => {
     const ext = path.extname(file.originalname).toLowerCase()
-    const isPdf = ext === '.pdf' || ext === '.docx' || ext === '.doc'
+    const isDoc = ext === '.docx' || ext === '.doc'
     return {
       folder: 'econtract/attachments',
-      // PDF/DOCX = raw, зураг = image
-      resource_type: isPdf ? 'raw' : 'image',
+      // PDF = image (preview-able), DOC/DOCX = raw (binary), зураг = image
+      resource_type: isDoc ? 'raw' : 'image',
       public_id:     `att_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-      format:        ext.replace('.', ''),  // url-д extension хадгалах
+      format:        ext.replace('.', ''),  // url-д extension хадгална
     }
   },
 })
@@ -96,7 +102,7 @@ const handleUploadError = (err, req, res, next) => {
     return res.status(400).json({ message: 'Файл upload алдаа: ' + err.message })
   }
   if (err) {
-    return res.status(400).json({ message: err.message })
+    return res.status(400).json({ message: safeErrorMessage(err) })
   }
   next()
 }

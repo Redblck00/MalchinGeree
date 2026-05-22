@@ -137,7 +137,10 @@ const renderContract = (templateContent, schemaJson, filledData, contractMeta = 
   const context = buildContext(schemaJson.fields, filledData || {}, contractMeta)
 
   // Handlebars compile + render
-  const compiled = Handlebars.compile(templateContent, { noEscape: true, strict: false })
+  // noEscape: false — XSS-аас сэргийлэх. Хэрэглэгчийн оруулсан утгууд HTML-д
+  // escape хийгдэнэ. Гарын үсэг гэх мэт HTML агуулсан утгыг хэрэглэхдээ
+  // Handlebars.SafeString-ээр боож context-д тавина.
+  const compiled = Handlebars.compile(templateContent, { noEscape: false, strict: false })
   const rendered = compiled(context)
 
   // Hash
@@ -171,7 +174,8 @@ const renderPreview = (templateContent, schemaJson, filledData, contractMeta = {
   }
   fillBlanks(context)
 
-  const compiled = Handlebars.compile(templateContent, { noEscape: true, strict: false })
+  // noEscape: false — XSS-аас сэргийлэх (renderContract-той ижил)
+  const compiled = Handlebars.compile(templateContent, { noEscape: false, strict: false })
   const rendered = compiled(context)
   const hash     = crypto.createHash('sha256').update(rendered).digest('hex')
 

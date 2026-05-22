@@ -11,9 +11,33 @@ const pool = new Pool({
 // SQL query ажиллуулах тусламж функц
 // Жишээ: db.query('SELECT * FROM users WHERE id = $1', [id])
 const query = (text, params) => pool.query(text, params)
+
+// ── Транзакцийн helper ────────────────────────────────────
+// Олон INSERT/UPDATE-ийг атомарт хийх. fn(client) дуудагдана, client дотроос
+// client.query(...) ашиглана. Алдаа гарвал ROLLBACK хийгдэнэ.
+// Жишээ:
+//   await withTransaction(async (db) => {
+//     await db.query('INSERT ...')
+//     await db.query('UPDATE ...')
+//   })
+const withTransaction = async (fn) => {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const result = await fn(client)
+    await client.query('COMMIT')
+    return result
+  } catch (err) {
+    try { await client.query('ROLLBACK') } catch (_) { /* rollback алдаа hide */ }
+    throw err
+  } finally {
+    client.release()
+  }
+}
+
 pool.connect().then(() => {
   console.log('PostgreSQL-тэй холбогдлоо')
 }).catch((err) => {
   console.error('PostgreSQL-тэй холбогдоход алдаа гарлаа:', err)
 })
-module.exports = { query, pool }
+module.exports = { query, pool, withTransaction }

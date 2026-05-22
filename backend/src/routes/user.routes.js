@@ -34,6 +34,11 @@ router.patch('/notifications/read-all',                   user.markAllNotificati
 
 // ── МАЛЫН СТАТИСТИК ──────────────────────────────────
 // GET /api/users/livestock/stats?role=buyer|seller&period=month|quarter|year
+//   → total (KPI) · by_type (Pie) · by_period (Bar) · price_trend (Line) · recent
 router.get('/livestock/stats',                            user.getLivestockStats)
+
+// ── ШИЛДЭГ ҮНЭЛГЭЭТЭЙ ХЭРЭГЛЭГЧИД ────────────────────
+// GET /api/users/top-rated?limit=5  → профайл/dashboard хэсэгт leaderboard
+router.get('/top-rated',                                  user.getTopRatedUsers)
 
 module.exports = router

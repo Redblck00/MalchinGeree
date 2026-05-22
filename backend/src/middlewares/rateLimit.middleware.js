@@ -31,10 +31,25 @@ const resendLimiter = rateLimit({
   legacyHeaders: false,
 })
 
-// Нэвтрэх — 15 минутад 10 удаа
+// Нэвтрэх — 15 минутад 10 удаа.
+// Phone + IP-ийн хослолоор тоолно: ингэснээр нэг утас руу олон IP-ээс
+// (credential-stuffing botnet) халдлага хийхэд ч хязгаар хүрэх боломжтой.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
+  keyGenerator: (req) =>
+    `login:${(req.body?.phone || '').toString().slice(0, 20)}:${ipKeyGenerator(req)}`,
+  message: { message: 'Хэт олон удаа оролдлоо. 15 минутын дараа дахин оролдоно уу' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+// Login-ийн IP-ийн backstop (нэг IP-ээс олон утас руу халдахаас сэргийлэх) —
+// 15 минутад 30 удаа.
+const loginIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  keyGenerator: (req) => `login_ip:${ipKeyGenerator(req)}`,
   message: { message: 'Хэт олон удаа оролдлоо. 15 минутын дараа дахин оролдоно уу' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -49,4 +64,17 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 })
 
-module.exports = { registerLimiter, otpVerifyLimiter, resendLimiter, loginLimiter, apiLimiter }
+// Гарын үсгийн OTP хүсэлт — 15 минутад хэрэглэгчид 5 удаа.
+// auth middleware-ийн ДАРАА байрлуулна (req.user.user_id ашиглана).
+// req.user байхгүй бол IP-ээр fallback хийнэ.
+const signOtpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  keyGenerator: (req) =>
+    `sign_otp:${req.user?.user_id || ipKeyGenerator(req)}`,
+  message: { message: 'OTP дахин илгээх хязгаар хэтэрлээ. 15 минутын дараа оролдоно уу' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+module.exports = { registerLimiter, otpVerifyLimiter, resendLimiter, loginLimiter, loginIpLimiter, apiLimiter, signOtpLimiter }

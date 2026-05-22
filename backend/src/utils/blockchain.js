@@ -1,5 +1,5 @@
 const crypto    = require('crypto')
-const { query } = require('../config/db')
+const { query, withTransaction } = require('../config/db')
 
 const GENESIS_HASH = '0'.repeat(64)
 
@@ -13,31 +13,39 @@ const computeBlockHash = (blockNumber, prevHash, contractHash, timestamp) => {
 
 // Шинэ block үүсгэж blockchain_ledger-д INSERT хийнэ
 // → амжилттай үед { block_id, block_number, block_hash, previous_hash, timestamp }
-const addBlock = async (contractId, contractHash) => {
-  // 1. Сүүлийн блок татах
-  const lastRes = await query(
-    `SELECT block_number, block_hash
-     FROM blockchain_ledger
-     ORDER BY block_number DESC
-     LIMIT 1`
-  )
-  const last = lastRes.rows[0]
+//
+// Race condition-аас сэргийлэх: транзакцийн дотор LOCK TABLE EXCLUSIVE-ээр
+// гинжний хүснэгтийг бүхэлд нь түгжинэ. Зэрэгцээ confirmation 2 ширхэг
+// "block N+1" үүсгэхгүй (хоёр форк гарахаас сэргийлнэ).
+const addBlock = (contractId, contractHash) =>
+  withTransaction(async (db) => {
+    // 1. Хүснэгтийг бүхэлд нь EXCLUSIVE lock — INSERT-үүд серилаар явна
+    await db.query('LOCK TABLE blockchain_ledger IN EXCLUSIVE MODE')
 
-  const blockNumber = (last?.block_number || 0) + 1
-  const prevHash    = last?.block_hash || GENESIS_HASH
-  const timestamp   = new Date()
-  const blockHash   = computeBlockHash(blockNumber, prevHash, contractHash, timestamp)
+    // 2. Сүүлийн блок татах
+    const lastRes = await db.query(
+      `SELECT block_number, block_hash
+       FROM blockchain_ledger
+       ORDER BY block_number DESC
+       LIMIT 1`
+    )
+    const last = lastRes.rows[0]
 
-  // 2. INSERT
-  const insRes = await query(
-    `INSERT INTO blockchain_ledger
-       (block_number, previous_hash, contract_id, contract_hash, timestamp, block_hash)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING block_id, block_number, previous_hash, contract_hash, timestamp, block_hash`,
-    [blockNumber, prevHash, contractId, contractHash, timestamp, blockHash]
-  )
-  return insRes.rows[0]
-}
+    const blockNumber = (last?.block_number || 0) + 1
+    const prevHash    = last?.block_hash || GENESIS_HASH
+    const timestamp   = new Date()
+    const blockHash   = computeBlockHash(blockNumber, prevHash, contractHash, timestamp)
+
+    // 3. INSERT
+    const insRes = await db.query(
+      `INSERT INTO blockchain_ledger
+         (block_number, previous_hash, contract_id, contract_hash, timestamp, block_hash)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING block_id, block_number, previous_hash, contract_hash, timestamp, block_hash`,
+      [blockNumber, prevHash, contractId, contractHash, timestamp, blockHash]
+    )
+    return insRes.rows[0]
+  })
 
 // Block-ийн integrity шалгах — hash-ыг recompute хийж DB-ийн утгатай харьцуулна
 const verifyBlock = (block) => {
