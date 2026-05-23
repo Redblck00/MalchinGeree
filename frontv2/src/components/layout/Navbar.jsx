@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter, usePathname } from 'next/navigation'
 import useAuthStore from '@/app/store/authStore'
 import NotificationDropdown from '@/components/layout/NotificationDropdown'
@@ -80,16 +81,22 @@ export default function Navbar() {
 
         {/* ── ЗҮҮН: Лого ────────────────────────────── */}
         <Link href="/" className="flex items-center gap-2.5 w-fit">
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-lg
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center p-1
                            transition-colors ${
                              transparent
-                               ? 'bg-white/20 text-white border border-white/40 backdrop-blur-sm'
-                               : 'bg-[#3d3a8c] text-white'
+                               ? 'bg-white/20 border border-white/40 backdrop-blur-sm'
+                               : 'bg-linear-to-br from-emerald-400 to-emerald-700'
                            }`}>
-            🐑
+            <Image
+              src="/home/systemIcon.png"
+              alt="МалчныГэрээ"
+              width={28}
+              height={28}
+              className="object-contain"
+            />
           </div>
           <span className={`text-lg font-bold tracking-wide ${textBase}`}>
-            Малчин гэрээ
+            МалчныГэрээ
           </span>
         </Link>
 
@@ -102,7 +109,7 @@ export default function Navbar() {
             const linkClass = active
               ? transparent
                 ? 'bg-white/20 text-white border border-white/30'
-                : 'bg-[#3d3a8c]/10 text-[#3d3a8c]'
+                : 'bg-emerald-50 text-emerald-700'
               : transparent
                 ? 'text-white/90 hover:bg-white/10'
                 : 'text-gray-700 hover:bg-gray-100'
@@ -134,7 +141,7 @@ export default function Navbar() {
                                 transparent ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-50 hover:bg-gray-100'
                               }`}
                 >
-                  <div className="w-8 h-8 rounded-full bg-[#3d3a8c] text-white
+                  <div className="w-8 h-8 rounded-full bg-emerald-600 text-white
                                   flex items-center justify-center font-semibold text-xs uppercase">
                     {initials || '👤'}
                   </div>
@@ -194,7 +201,7 @@ export default function Navbar() {
               className={`px-5 py-2 rounded-xl text-sm font-semibold transition-all ${
                 transparent
                   ? 'bg-white/20 text-white border border-white/40 backdrop-blur-sm hover:bg-white/30'
-                  : 'bg-[#3d3a8c] text-white hover:bg-[#2d2a6e]'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-700'
               }`}
             >
               Нэвтрэх

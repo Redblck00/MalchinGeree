@@ -1,6 +1,9 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { MdAdd, MdRemove, MdKeyboardArrowUp, MdKeyboardArrowDown } from 'react-icons/md'
+import {
+  MdAdd, MdRemove, MdKeyboardArrowUp, MdKeyboardArrowDown,
+  MdClose, MdDescription, MdLayers, MdAutoAwesome,
+} from 'react-icons/md'
 import { renderChips } from '@/lib/templateRender'
 
 // ── A4 хэмжээ ─────────────────────────────────────────
@@ -108,28 +111,32 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-emerald-950/60 backdrop-blur-sm z-50
+                 flex items-center justify-center p-4
+                 animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="bg-white  w-full shadow-2xl overflow-hidden flex flex-col relative"
+        className="bg-white w-full rounded-3xl shadow-2xl overflow-hidden flex flex-col relative
+                   ring-1 ring-emerald-900/10"
         style={{ maxWidth: '1000px', height: '90vh' }}
         onClick={e => e.stopPropagation()}
       >
         {/* ── Close button ─────────────────────────────── */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 z-20 w-9 h-9 flex items-center justify-center
-                     rounded-full bg-white/90 hover:bg-gray-100 text-gray-500
-                     hover:text-gray-900 border-0 cursor-pointer shadow text-xl leading-none"
+          className="absolute top-4 right-4 z-20 w-9 h-9 flex items-center justify-center
+                     rounded-xl bg-white/90 hover:bg-emerald-50 text-gray-500
+                     hover:text-emerald-700 border border-gray-200 hover:border-emerald-200
+                     cursor-pointer shadow-sm transition-colors"
           aria-label="Хаах"
         >
-          ×
+          <MdClose size={20} />
         </button>
 
         {loading || !template ? (
           <div className="flex items-center justify-center flex-1">
-            <div className="w-8 h-8 border-2 border-gray-200 border-t-[#1e1b4b]
+            <div className="w-8 h-8 border-2 border-gray-200 border-t-emerald-600
                             rounded-full animate-spin" />
           </div>
         ) : (
@@ -142,7 +149,8 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
               {/* Scrollable workspace */}
               <div
                 ref={scrollRef}
-                className="flex-1 overflow-auto bg-gray-200/60 py-6 px-4 relative"
+                className="flex-1 overflow-auto bg-linear-to-br from-gray-200/60 to-gray-300/40
+                           py-6 px-4 relative"
               >
                 {/* Hidden measure div — бүх агуулгыг A4 өргөнтэй ижил хэмжээтэй
                     container-д рендер хийж scrollHeight уншина */}
@@ -178,14 +186,15 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
 
               {/* Bottom toolbar — page nav + zoom */}
               <div className="flex items-center justify-between px-5 py-3
-                              bg-gray-800 text-white text-sm shrink-0">
+                              bg-linear-to-r from-emerald-900 to-emerald-950
+                              text-white text-sm shrink-0">
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => goToPage(currentPage - 1)}
                     disabled={currentPage <= 1}
-                    className="w-7 h-7 rounded bg-gray-600 hover:bg-gray-500
+                    className="w-7 h-7 rounded-lg bg-white/10 hover:bg-emerald-400/30
                                flex items-center justify-center border-0 cursor-pointer text-white
-                               disabled:opacity-40 disabled:cursor-not-allowed"
+                               disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     title="Өмнөх хуудас"
                   >
                     <MdKeyboardArrowUp size={16} />
@@ -193,14 +202,14 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
                   <button
                     onClick={() => goToPage(currentPage + 1)}
                     disabled={currentPage >= pageCount}
-                    className="w-7 h-7 rounded bg-gray-600 hover:bg-gray-500
+                    className="w-7 h-7 rounded-lg bg-white/10 hover:bg-emerald-400/30
                                flex items-center justify-center border-0 cursor-pointer text-white
-                               disabled:opacity-40 disabled:cursor-not-allowed"
+                               disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     title="Дараах хуудас"
                   >
                     <MdKeyboardArrowDown size={16} />
                   </button>
-                  <span className="text-gray-300 text-xs ml-1 select-none">
+                  <span className="text-emerald-200/80 text-xs ml-2 select-none font-medium">
                     Хуудас {currentPage}/{pageCount}
                   </span>
                 </div>
@@ -209,22 +218,22 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
                   <button
                     onClick={zoomOut}
                     disabled={zoom <= ZOOM_LEVELS[0]}
-                    className="w-7 h-7 rounded bg-gray-600 hover:bg-gray-500
+                    className="w-7 h-7 rounded-lg bg-white/10 hover:bg-emerald-400/30
                                flex items-center justify-center border-0 cursor-pointer text-white
-                               disabled:opacity-40 disabled:cursor-not-allowed"
+                               disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     title="Бууруулах"
                   >
                     <MdRemove size={14} />
                   </button>
-                  <span className="text-gray-300 text-xs min-w-12 text-center select-none">
+                  <span className="text-emerald-200/80 text-xs min-w-12 text-center select-none font-medium">
                     {Math.round(zoom * 100)}%
                   </span>
                   <button
                     onClick={zoomIn}
                     disabled={zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
-                    className="w-7 h-7 rounded bg-gray-600 hover:bg-gray-500
+                    className="w-7 h-7 rounded-lg bg-white/10 hover:bg-emerald-400/30
                                flex items-center justify-center border-0 cursor-pointer text-white
-                               disabled:opacity-40 disabled:cursor-not-allowed"
+                               disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     title="Томруулах"
                   >
                     <MdAdd size={14} />
@@ -234,56 +243,104 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
             </div>
 
             {/* ── RIGHT — Info + action ─────────────────── */}
-            <div className="flex flex-col justify-between px-10 py-10 bg-white"
+            <div className="relative flex flex-col px-8 py-8 bg-white overflow-hidden"
                  style={{ width: '42%' }}>
 
-              <div className="flex flex-col gap-6">
-                {template.is_standard && (
-                  <span className="w-fit px-3 py-1 bg-blue-50 text-blue-700
-                                   text-xs font-medium rounded-full border border-blue-200">
+              {/* Subtle decorative blobs */}
+              <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full
+                              bg-emerald-50/80 pointer-events-none" />
+              <div className="absolute -left-8 -bottom-12 w-32 h-32 rounded-full
+                              bg-emerald-100/40 pointer-events-none" />
+
+              <div className="relative flex flex-col gap-5 flex-1 overflow-y-auto pr-2 no-scrollbar">
+                {/* Badge */}
+                {template.is_standard ? (
+                  <span className="w-fit inline-flex items-center gap-1.5
+                                   px-3 py-1 bg-emerald-50 text-emerald-700
+                                   text-xs font-semibold rounded-full
+                                   border border-emerald-200 uppercase tracking-wide">
+                    <MdAutoAwesome size={12} />
                     Стандарт загвар
+                  </span>
+                ) : (
+                  <span className="w-fit inline-flex items-center gap-1.5
+                                   px-3 py-1 bg-gray-100 text-gray-600
+                                   text-xs font-semibold rounded-full
+                                   border border-gray-200 uppercase tracking-wide">
+                    Хувийн загвар
                   </span>
                 )}
 
-                <h2 className="text-3xl font-bold text-gray-900 leading-tight">
+                {/* Title */}
+                <h2 className="text-2xl lg:text-3xl font-extrabold text-gray-900 leading-tight m-0">
                   {template.name}
                 </h2>
 
-                <p className="text-gray-600 text-base leading-relaxed">
+                {/* Description */}
+                <p className="text-gray-600 text-sm leading-relaxed m-0">
                   {template.description ||
                     'Энэ загварыг ашиглан цахим гэрээ үүсгэнэ үү.'}
                 </p>
 
-                {template.schema_json?.fields?.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {template.schema_json.fields.slice(0, 5).map((f, i) => (
-                      <span key={i}
-                        className="px-2.5 py-1 bg-gray-100 text-gray-600
-                                   text-xs rounded-lg font-mono">
-                        {f.key}
-                      </span>
-                    ))}
-                    {template.schema_json.fields.length > 5 && (
-                      <span className="px-2.5 py-1 bg-gray-100 text-gray-400
-                                       text-xs rounded-lg">
-                        +{template.schema_json.fields.length - 5}
-                      </span>
-                    )}
+                {/* Stats row */}
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <div className="flex items-center gap-2 px-3 py-2.5
+                                  bg-emerald-50/60 border border-emerald-100 rounded-xl">
+                    <MdDescription className="text-emerald-700 shrink-0" size={18} />
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-emerald-700/70 uppercase tracking-wide m-0 font-semibold">
+                        Хуудас
+                      </p>
+                      <p className="text-sm font-bold text-emerald-900 m-0">{pageCount}</p>
+                    </div>
                   </div>
-                )}
-
-                <div className="text-xs text-gray-400">
-                  Энэхүү загвар нь <strong className="text-gray-600">{pageCount}</strong> хуудастай.
+                  <div className="flex items-center gap-2 px-3 py-2.5
+                                  bg-emerald-50/60 border border-emerald-100 rounded-xl">
+                    <MdLayers className="text-emerald-700 shrink-0" size={18} />
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-emerald-700/70 uppercase tracking-wide m-0 font-semibold">
+                        Талбар
+                      </p>
+                      <p className="text-sm font-bold text-emerald-900 m-0">
+                        {template.schema_json?.fields?.length || 0}
+                      </p>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Fields chips */}
+                {/* {template.schema_json?.fields?.length > 0 && (
+                  <div>
+                    <p className="text-[11px] text-gray-500 uppercase tracking-widest font-semibold m-0 mb-2">
+                      Бөглөх талбарууд
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {template.schema_json.fields.slice(0, 8).map((f, i) => (
+                        <span key={i}
+                          className="px-2 py-0.5 bg-white border border-gray-200 text-gray-600
+                                     text-[11px] rounded-md font-mono">
+                          {f.key}
+                        </span>
+                      ))}
+                      {template.schema_json.fields.length > 8 && (
+                        <span className="px-2 py-0.5 bg-gray-50 border border-gray-200 text-gray-400
+                                         text-[11px] rounded-md">
+                          +{template.schema_json.fields.length - 8}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )} */}
               </div>
 
-              <div className="flex flex-col gap-3 mt-8">
-               
+              {/* Footer action */}
+              <div className="relative pt-4 mt-4 border-t border-gray-100">
                 <button
                   onClick={onClose}
-                  className="w-full py-3 border border-gray-200 text-gray-600
-                             text-sm rounded-xl hover:bg-gray-50
-                             transition-colors cursor-pointer bg-white"
+                  className="w-full py-3 px-4 text-sm font-semibold
+                             text-gray-700 bg-white border border-gray-200
+                             rounded-xl hover:bg-gray-50 hover:border-gray-300
+                             transition-colors cursor-pointer"
                 >
                   Хаах
                 </button>
@@ -320,12 +377,27 @@ function ZoomedPage({ zoom, children }) {
 // ── A4 хуудас — translateY-аар page-ийн slice харуулна ──
 // Бүх HTML агуулгыг page бүрд render хийнэ, overflow:hidden-аар тухайн
 // хэсгийг нь л үзүүлнэ. Энэ нь chip HTML-г таслахгүй (CSS leak гарахгүй).
+//
+// ── Хуулбарлахаас сэргийлэх ────────────────────────────
+// • user-select: none — текст идэвхжүүлэх (highlight) болохгүй
+// • onCopy / onCut    — Ctrl+C / Ctrl+X хааж preventDefault
+// • onContextMenu     — баруун товчны "Copy" цэс хаагдсан
+// • onDragStart       — drag-and-drop хуулбарлалт хаагдсан
+// • Зөвхөн UI түвшинд — devtools-оос source-ийг харж болно, гэхдээ
+//   ердийн хэрэглэгчийн copy-paste урсгал бүрэн хаагдана.
+const noCopyHandlers = {
+  onCopy:        (e) => e.preventDefault(),
+  onCut:         (e) => e.preventDefault(),
+  onContextMenu: (e) => e.preventDefault(),
+  onDragStart:   (e) => e.preventDefault(),
+}
+
 function A4Page({ pageIdx, pageCount, htmlContent, templateName }) {
   const translateY = -pageIdx * contentHeightPx
 
   return (
     <div
-      className="tp-page bg-white shadow-lg rounded-sm"
+      className="tp-page bg-white shadow-lg rounded-sm select-none"
       data-page-num={pageIdx + 1}
       style={{
         width:    `${PAGE_WIDTH_MM}mm`,
@@ -333,8 +405,13 @@ function A4Page({ pageIdx, pageCount, htmlContent, templateName }) {
         padding:  `${PAD_TOP_MM}mm ${PAD_X_MM}mm ${PAD_BOTTOM_MM}mm ${PAD_X_MM}mm`,
         boxSizing: 'border-box',
         position: 'relative',
+        userSelect:       'none',
+        WebkitUserSelect: 'none',
+        MozUserSelect:    'none',
+        msUserSelect:     'none',
         ...CONTENT_STYLES,
       }}
+      {...noCopyHandlers}
     >
       {/* Content slice — бүтэн HTML, зөвхөн тухайн page-ийн хэсгийг харуулна */}
       <div
@@ -352,6 +429,28 @@ function A4Page({ pageIdx, pageCount, htmlContent, templateName }) {
           }}
           dangerouslySetInnerHTML={{ __html: htmlContent }}
         />
+
+        {/* Watermark — preview гэдгийг сануулсан, хуулбарлахад ч хальт орох */}
+        <div
+          aria-hidden
+          style={{
+            position:       'absolute',
+            inset:          0,
+            display:        'flex',
+            alignItems:     'center',
+            justifyContent: 'center',
+            pointerEvents:  'none',
+            transform:      'rotate(-30deg)',
+            fontSize:       '72px',
+            fontWeight:     900,
+            letterSpacing:  '0.15em',
+            color:          'rgba(16, 185, 129, 0.06)',  // emerald, маш сулхан
+            textTransform:  'uppercase',
+            userSelect:     'none',
+          }}
+        >
+          ЗАГВАР · PREVIEW
+        </div>
       </div>
 
       {/* Footer */}

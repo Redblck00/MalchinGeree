@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
-import { FiBell } from 'react-icons/fi'
+import { Bell } from 'lucide-react'
 
 // Цаг өнгөрснийг хүн уншигдахуйцаар форматлах
 function timeAgo(timestamp) {
@@ -18,7 +18,7 @@ function timeAgo(timestamp) {
   return new Date(timestamp).toLocaleDateString('mn-MN')
 }
 
-export default function NotificationDropdown({ transparent = false }) {
+export default function NotificationDropdown({ transparent = false, iconClassName = '' }) {
   const router = useRouter()
   const [open,    setOpen]    = useState(false)
   const [notifs,  setNotifs]  = useState([])
@@ -84,10 +84,10 @@ export default function NotificationDropdown({ transparent = false }) {
                     border-0 bg-transparent ${
                       transparent
                         ? 'text-white hover:bg-white/10'
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }`}
+                        : 'hover:bg-gray-100'
+                    } ${iconClassName || 'text-gray-700'}`}
       >
-        <FiBell size={18} />
+        <Bell size={18} />
         {unread > 0 && (
           <span className="absolute top-1 right-1 min-w-4 h-4 px-1 bg-red-500 text-white
                            text-[10px] font-bold rounded-full
@@ -125,7 +125,7 @@ export default function NotificationDropdown({ transparent = false }) {
           <div className="flex-1 overflow-y-auto">
             {notifs.length === 0 ? (
               <div className="text-center py-12 px-4">
-                <FiBell size={32} className="mx-auto text-gray-300 mb-2" />
+                <Bell size={32} className="mx-auto text-gray-300 mb-2" />
                 <p className="text-sm text-gray-400 m-0">Мэдэгдэл байхгүй</p>
               </div>
             ) : (

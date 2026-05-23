@@ -52,7 +52,7 @@ const CONTRACT_FIELDS = [
 
   // ── Хүргэлт ───────────────────────────────────────────
   {
-    group: 'Хүргэлт',
+    group: 'Гэрээний нөхцөл',
     fields: [
       { key: 'delivery.location',     label: 'Хүргэлтийн газар',  type: 'text' },
       { key: 'delivery.receive_date', label: 'Авах огноо',         type: 'date' },

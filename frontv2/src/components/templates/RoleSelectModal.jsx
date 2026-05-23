@@ -1,87 +1,118 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { MdSell, MdShoppingCart, MdHandshake, MdClose, MdArrowForward } from 'react-icons/md'
 
 // Template сонгосны дараа гарч ирэх modal
 // Хэрэглэгч худалдагч уу, худалдан авагч уу гэдгээ сонгоно
 export default function RoleSelectModal({ template, onClose, onSelect }) {
   const [role, setRole] = useState('seller')
 
+  // ESC дарж хаах
+  useEffect(() => {
+    const onEsc = (e) => { if (e.key === 'Escape') onClose?.() }
+    window.addEventListener('keydown', onEsc)
+    return () => window.removeEventListener('keydown', onEsc)
+  }, [onClose])
+
   if (!template) return null
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-emerald-950/50 backdrop-blur-sm z-50
+                 flex items-center justify-center p-4 animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-6"
+        className="relative bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-start justify-between mb-2">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-semibold text-gray-900 m-0">
-              Та энэ гэрээнд ямар талаас орох вэ?
-            </h2>
-            <p className="text-xs text-gray-500 mt-1 m-0 truncate">
-              {template.name}
-            </p>
+        {/* ── HEADER with emerald accent ─────────────────── */}
+        <div className="relative px-6 pt-6 pb-5
+                        bg-linear-to-br from-emerald-50 to-emerald-100/60
+                        border-b border-emerald-100 overflow-hidden">
+          {/* Decorative circles */}
+          <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-emerald-200/40 blur-2xl" />
+          <div className="absolute -left-6 -bottom-10 w-24 h-24 rounded-full bg-emerald-300/30 blur-xl" />
+
+          <div className="relative flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3 min-w-0 flex-1">
+              {/* Header icon */}
+              <div className="shrink-0 w-11 h-11 rounded-2xl
+                              bg-linear-to-br from-emerald-500 to-emerald-700
+                              text-white flex items-center justify-center
+                              shadow-md shadow-emerald-200">
+                <MdHandshake size={22} />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold text-emerald-900 m-0 leading-tight">
+                  Гэрээнд ямар талаас орох вэ?
+                </h2>
+                <p className="text-xs text-emerald-700/70 mt-1 m-0 truncate font-medium">
+                  {template.name}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center
+                         text-emerald-700/60 hover:text-emerald-900 hover:bg-white/60
+                         cursor-pointer bg-transparent border-0 transition-colors"
+              aria-label="Хаах"
+            >
+              <MdClose size={20} />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-700 text-2xl leading-none ml-3
-                       cursor-pointer bg-transparent border-0"
-            aria-label="Хаах"
-          >
-            ×
-          </button>
         </div>
 
-        {/* Role options */}
-        <div className="grid grid-cols-2 gap-3 mt-5">
-          <RoleOption
-            selected={role === 'seller'}
-            onClick={() => setRole('seller')}
-            icon={
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 9l1-5h16l1 5"/>
-                <path d="M5 9v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/>
-                <path d="M9 21V13h6v8"/>
-              </svg>
-            }
-            title="Худалдагч"
-            subtitle="Малаа зарж байна"
-          />
-          <RoleOption
-            selected={role === 'buyer'}
-            onClick={() => setRole('buyer')}
-            icon={
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="9" cy="21" r="1"/>
-                <circle cx="20" cy="21" r="1"/>
-                <path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/>
-              </svg>
-            }
-            title="Худалдан авагч"
-            subtitle="Мал авч байна"
-          />
+        {/* ── BODY — role options ───────────────────────── */}
+        <div className="p-6">
+          <p className="text-xs text-gray-500 uppercase tracking-widest font-semibold m-0 mb-3">
+            Үүргээ сонгоно уу
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <RoleOption
+              selected={role === 'seller'}
+              onClick={() => setRole('seller')}
+              icon={<MdSell size={28} />}
+              title="Худалдагч"
+              subtitle="Малаа зарж байна"
+              accent="seller"
+            />
+            <RoleOption
+              selected={role === 'buyer'}
+              onClick={() => setRole('buyer')}
+              icon={<MdShoppingCart size={28} />}
+              title="Худалдан авагч"
+              subtitle="Мал авч байна"
+              accent="buyer"
+            />
+          </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex gap-3 mt-6">
+        {/* ── FOOTER ─────────────────────────────────────── */}
+        <div className="flex gap-3 px-6 pb-6 pt-2">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2.5 text-sm text-gray-600 border border-gray-200
-                       rounded-xl hover:bg-gray-50 cursor-pointer bg-white"
+            className="flex-1 px-4 py-3 text-sm font-medium text-gray-700
+                       bg-white border border-gray-200 rounded-xl
+                       hover:bg-gray-50 hover:border-gray-300
+                       cursor-pointer transition-colors"
           >
             Цуцлах
           </button>
           <button
             onClick={() => onSelect(role)}
-            className="flex-1 px-4 py-2.5 text-sm text-white bg-[#3d3a8c]
-                       rounded-xl hover:bg-[#2d2a6e] cursor-pointer border-0"
+            className="flex-1 inline-flex items-center justify-center gap-1.5
+                       px-4 py-3 text-sm font-semibold text-white
+                       bg-linear-to-br from-emerald-500 to-emerald-700
+                       rounded-xl hover:from-emerald-600 hover:to-emerald-800
+                       shadow-md shadow-emerald-200
+                       cursor-pointer border-0 transition-all"
           >
             Үргэлжлүүлэх
+            <MdArrowForward size={16} />
           </button>
         </div>
       </div>
@@ -93,17 +124,35 @@ function RoleOption({ selected, onClick, icon, title, subtitle }) {
   return (
     <button
       onClick={onClick}
-      className={`p-5 rounded-xl border-2 flex flex-col items-center gap-2 transition-all
-                  cursor-pointer text-left
+      className={`relative overflow-hidden p-5 rounded-2xl border-2
+                  flex flex-col items-center gap-2 transition-all
+                  cursor-pointer text-center
                   ${selected
-                    ? 'border-[#3d3a8c] bg-[#3d3a8c]/5 text-[#3d3a8c]'
-                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'}`}
+                    ? 'border-emerald-500 bg-linear-to-br from-emerald-50 to-emerald-100/70 shadow-md shadow-emerald-100'
+                    : 'border-gray-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/30'}`}
     >
-      <div className={selected ? 'text-[#3d3a8c]' : 'text-gray-400'}>
+      {/* Selected check indicator */}
+      {selected && (
+        <span className="absolute top-2 right-2 w-5 h-5 rounded-full
+                         bg-emerald-600 text-white text-[10px] font-bold
+                         flex items-center justify-center shadow-sm">
+          ✓
+        </span>
+      )}
+
+      {/* Icon */}
+      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors
+                       ${selected
+                         ? 'bg-linear-to-br from-emerald-500 to-emerald-700 text-white shadow-md shadow-emerald-200'
+                         : 'bg-gray-100 text-gray-500'}`}>
         {icon}
       </div>
-      <span className="text-sm font-semibold">{title}</span>
-      <span className={`text-xs ${selected ? 'text-[#3d3a8c]/70' : 'text-gray-400'}`}>
+
+      {/* Title + subtitle */}
+      <span className={`text-sm font-bold mt-1 ${selected ? 'text-emerald-800' : 'text-gray-800'}`}>
+        {title}
+      </span>
+      <span className={`text-xs ${selected ? 'text-emerald-700/80' : 'text-gray-500'}`}>
         {subtitle}
       </span>
     </button>

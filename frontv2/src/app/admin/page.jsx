@@ -59,10 +59,14 @@ export default function AdminDashboard() {
           {/* Quick links */}
           <Card className="p-5">
             <h2 className="text-sm font-semibold text-gray-700 mb-3">Хурдан холбоосууд</h2>
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
               <Link href="/admin/templates"
                 className="px-4 py-2 bg-[#1e1b4b] text-white text-sm rounded-xl hover:bg-[#2d2a6e]">
                 + Шинэ загвар
+              </Link>
+              <Link href="/admin/reports/visits"
+                className="px-4 py-2 bg-emerald-600 text-white text-sm rounded-xl hover:bg-emerald-700">
+                📊 Зочдын тайлан
               </Link>
               <Link href="/admin/users"
                 className="px-4 py-2 border border-gray-200 text-gray-700 text-sm rounded-xl hover:bg-gray-50">

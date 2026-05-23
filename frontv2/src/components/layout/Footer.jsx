@@ -1,85 +1,140 @@
 import Link from "next/link";
+import Image from "next/image";
 import { FaFacebook, FaInstagram, FaTwitter, FaMapMarkerAlt, FaPhoneAlt, FaEnvelope } from "react-icons/fa";
 
 const Footer = () => {
   return (
-    <footer className="bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-800 font-serif text-gray-200 pt-12">
-      <div className="container mx-auto px-4">
+    <footer className="relative font-serif text-gray-700 bg-emerald-50/40 border-t border-emerald-100">
+      {/* ── Top emerald accent bar ────────────────────── */}
+      <div className="h-1.5 bg-linear-to-r from-emerald-400 via-emerald-500 to-emerald-700" />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 py-8">
-          {/* About & Contact */}
+      <div className="container mx-auto px-4 pt-14 pb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 py-6">
+
+          {/* ── About & Contact ─────────────────────── */}
           <div>
             <div className="flex items-center gap-3 mb-4">
-              <h3 className="text-xl font-bold text-white">🐄 МалГэрээ</h3>
+              <div className="w-10 h-10 rounded-xl bg-linear-to-br from-emerald-400 to-emerald-700
+                              flex items-center justify-center p-1.5 shadow-sm">
+                <Image
+                  src="/home/systemIcon.png"
+                  alt="МалчныГэрээ"
+                  width={32}
+                  height={32}
+                  className="object-contain"
+                />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 m-0">МалчныГэрээ</h3>
             </div>
-            <p className="text-gray-400 text-sm mb-2">Электрон гэрээний систем</p>
-            <div className="flex items-center text-gray-400 text-sm mb-2">
-              <FaMapMarkerAlt className="mr-2 text-indigo-400" />
-              <span>Улаанбаатар, Монгол</span>
-            </div>
-            <div className="flex items-center text-gray-400 text-sm mb-2">
-              <FaPhoneAlt className="mr-2 text-indigo-400" />
-              <a href="tel:+97699001234" className="hover:text-indigo-300">+976 9900-1234</a>
-            </div>
-            <div className="flex items-center text-gray-400 text-sm mb-4">
-              <FaEnvelope className="mr-2 text-indigo-400" />
-              <a href="mailto:info@malgereе.mn" className="hover:text-indigo-300">info@malgeree.mn</a>
-            </div>
-            <div className="flex gap-4 mt-4">
-              <a href="#" className="hover:text-indigo-400"><FaFacebook size={20} /></a>
-              <a href="#" className="hover:text-indigo-400"><FaInstagram size={20} /></a>
-              <a href="#" className="hover:text-indigo-400"><FaTwitter size={20} /></a>
+
+            <p className="text-gray-500 text-sm mb-4 leading-relaxed">
+              Малчдад зориулсан цахим гэрээний систем
+            </p>
+
+            <ul className="space-y-2 text-sm text-gray-600">
+              <li className="flex items-center gap-2">
+                <FaMapMarkerAlt className="text-emerald-600 shrink-0" />
+                <span>Улаанбаатар, Монгол</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <FaPhoneAlt className="text-emerald-600 shrink-0" />
+                <a href="tel:+97699001234" className="hover:text-emerald-700 transition-colors">
+                  +976 9900-1234
+                </a>
+              </li>
+              <li className="flex items-center gap-2">
+                <FaEnvelope className="text-emerald-600 shrink-0" />
+                <a href="mailto:info@malchnygeree.mn" className="hover:text-emerald-700 transition-colors">
+                  info@malchnygeree.mn
+                </a>
+              </li>
+            </ul>
+
+            <div className="flex gap-3 mt-5">
+              <SocialIcon href="#"><FaFacebook size={16} /></SocialIcon>
+              <SocialIcon href="#"><FaInstagram size={16} /></SocialIcon>
+              <SocialIcon href="#"><FaTwitter size={16} /></SocialIcon>
             </div>
           </div>
 
-          {/* Products */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <span className="text-indigo-400">•</span> Бүтээгдэхүүн
-            </h3>
-            <ul className="space-y-2 text-gray-300">
-              <li>Гэрээ үүсгэх</li>
-              <li>Загвар ашиглах</li>
-              <li>Гарын үсэг зурах</li>
-            </ul>
-          </div>
+          {/* ── Products ───────────────────────────── */}
+          <FooterColumn title="Бүтээгдэхүүн">
+            <FooterLink href="/templates">Гэрээ үүсгэх</FooterLink>
+            <FooterLink href="/templates">Загвар ашиглах</FooterLink>
+            <FooterLink href="/dashboard/signature">Гарын үсэг зурах</FooterLink>
+          </FooterColumn>
 
-          {/* Quick Links */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <span className="text-indigo-400">•</span> Шуурхай холбоос
-            </h3>
-            <ul className="space-y-2">
-              <li><Link href="/profile" className="text-gray-300 hover:text-indigo-400">Таны бүртгэл</Link></li>
-              <li><Link href="/contracts" className="text-gray-300 hover:text-indigo-400">Гэрээний түүх</Link></li>
-              <li><Link href="/templates" className="text-gray-300 hover:text-indigo-400">Загварууд</Link></li>
-              <li><Link href="/notifications" className="text-gray-300 hover:text-indigo-400">Мэдэгдэл</Link></li>
-            </ul>
-          </div>
+          {/* ── Quick Links ────────────────────────── */}
+          <FooterColumn title="Шуурхай холбоос">
+            <FooterLink href="/dashboard/profile">Таны бүртгэл</FooterLink>
+            <FooterLink href="/dashboard/contracts">Гэрээний түүх</FooterLink>
+            <FooterLink href="/templates">Загварууд</FooterLink>
+            <FooterLink href="/dashboard">Дашбоард</FooterLink>
+          </FooterColumn>
 
-          {/* Services */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <span className="text-indigo-400">•</span> Үйлчилгээ
-            </h3>
-            <ul className="space-y-2">
-              <li><Link href="/" className="text-gray-300 hover:text-indigo-400">Тусламжийн төв</Link></li>
-              <li><Link href="/" className="text-gray-300 hover:text-indigo-400">Үйлчилгээний нөхцөл</Link></li>
-              <li><Link href="/" className="text-gray-300 hover:text-indigo-400">Нууцлалын бодлого</Link></li>
-              <li><Link href="/" className="text-gray-300 hover:text-indigo-400">Түгээмэл асуултууд</Link></li>
-            </ul>
-          </div>
+          {/* ── Services ───────────────────────────── */}
+          <FooterColumn title="Үйлчилгээ">
+            <FooterLink href="/">Тусламжийн төв</FooterLink>
+            <FooterLink href="/">Үйлчилгээний нөхцөл</FooterLink>
+            <FooterLink href="/">Нууцлалын бодлого</FooterLink>
+            <FooterLink href="/">Түгээмэл асуултууд</FooterLink>
+          </FooterColumn>
         </div>
 
-        {/* Bottom Footer */}
-        <div className="border-t border-white py-6 mt-8">
-          <p className="text-gray-400 text-sm text-center">
-            © 2025 МалГэрээ. Бүх эрх хуулиар хамгаалагдсан.
+        {/* ── Bottom bar ──────────────────────────── */}
+        <div className="border-t border-emerald-100 py-5 mt-6
+                        flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-gray-500 text-sm m-0">
+            © 2025 МалчныГэрээ.
+          </p>
+          <p className="text-gray-400 text-xs m-0">
+            Made with{" "}
+            <span className="text-emerald-600">●</span>{" "}
+            for Mongolian herders
           </p>
         </div>
       </div>
     </footer>
   );
 };
+
+function FooterColumn({ title, children }) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2 uppercase tracking-wide">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+        {title}
+      </h3>
+      <ul className="space-y-2.5">{children}</ul>
+    </div>
+  );
+}
+
+function FooterLink({ href, children }) {
+  return (
+    <li>
+      <Link
+        href={href}
+        className="text-sm text-gray-600 hover:text-emerald-700 transition-colors"
+      >
+        {children}
+      </Link>
+    </li>
+  );
+}
+
+function SocialIcon({ href, children }) {
+  return (
+    <a
+      href={href}
+      className="w-9 h-9 rounded-lg bg-white border border-emerald-100
+                 text-emerald-600 flex items-center justify-center
+                 hover:bg-emerald-600 hover:text-white hover:border-emerald-600
+                 transition-colors duration-200 shadow-sm"
+    >
+      {children}
+    </a>
+  );
+}
 
 export default Footer;

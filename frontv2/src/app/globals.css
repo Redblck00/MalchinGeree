@@ -30,3 +30,15 @@ body {
   from { opacity: 0; transform: scale(0.95); }
   to   { opacity: 1; transform: scale(1); }
 }
+
+/* Scrollbar нуух — scroll хийгдэх боловч bar харагдахгүй.
+   Overscroll bounce/chain-г контейнертээ үлдээнэ. */
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

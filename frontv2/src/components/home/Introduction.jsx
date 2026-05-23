@@ -1,5 +1,7 @@
 "use client";
+import Image from "next/image";
 import { useEffect, useRef } from "react";
+import useAuthStore from "@/app/store/authStore";
 
 function useReveal() {
   const ref = useRef(null);
@@ -92,47 +94,66 @@ const stats = [
   { value: "24/7", label: "Үйлчилгээний хүртээмж" },
 ];
 
+const livestockGallery = [
+  { src: "/home/livestock1.png", label: "Хонь",  desc: "Малын худалдааны гэрээ" },
+  { src: "/home/livestock2.png", label: "Ямаа",  desc: "Ноолуурын борлуулалт" },
+  { src: "/home/livestock3.png", label: "Үхэр",  desc: "Бэлчээр, тэжээлийн гэрээ" },
+  { src: "/home/Livestock4.png", label: "Адуу",  desc: "Хамтын ажиллагаа" },
+];
+
 function AboutSection() {
   const ref = useReveal();
+  const { isAuthenticated, restoreAuth } = useAuthStore();
+  useEffect(() => { restoreAuth() }, [restoreAuth]);
   return (
     <section className="py-24 bg-white">
       <div
         ref={ref}
         className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-16 items-center opacity-0 translate-y-8 transition-all duration-700"
       >
-        {/* Left: visual */}
+        {/* Left: visual — KPI-style emerald card */}
         <div className="relative">
-          <div className="w-full aspect-square max-w-md mx-auto rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-800 flex items-center justify-center shadow-2xl">
-            <div className="text-center text-white p-10">
+          <div className="relative w-full aspect-square max-w-md mx-auto rounded-2xl
+                          overflow-hidden shadow-2xl
+                          bg-linear-to-br from-emerald-400 via-emerald-500 to-emerald-700
+                          flex items-center justify-center">
+            {/* Decorative circles */}
+            <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-white/10" />
+            <div className="absolute -left-8 -bottom-8 w-32 h-32 rounded-full bg-white/5" />
+
+            <div className="relative text-center text-white p-10">
               <div className="flex justify-center mb-6">
-                <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center border border-white/20">
-                  <svg className="w-12 h-12 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                      d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
-                  </svg>
+                <div className="w-28 h-28 bg-white/20 backdrop-blur-sm rounded-full
+                                flex items-center justify-center border border-white/30 p-3">
+                  <Image
+                    src="/home/systemIcon.png"
+                    alt="МалчныГэрээ"
+                    width={88}
+                    height={88}
+                    className="object-contain"
+                  />
                 </div>
               </div>
-              <p className="text-2xl font-bold text-yellow-300 mb-2">МалГэрээ</p>
-              <p className="text-slate-300 text-sm leading-relaxed">
-                Монгол малчин, хуульчдын хууль эрхзүйн аюулгүй байдлыг хангах платформ
+              <p className="text-3xl font-bold text-white mb-2">МалчныГэрээ</p>
+              <p className="text-emerald-50 text-sm leading-relaxed max-w-xs mx-auto">
+                Монгол малчдын хууль эрхзүйн аюулгүй байдлыг хангах
+                цахим гэрээний платформ
               </p>
             </div>
           </div>
-          {/* Floating badge */}
-          {/* <div className="absolute -bottom-4 -right-4 bg-yellow-400 text-slate-900 text-sm font-bold px-5 py-3 rounded-xl shadow-lg">
-           Малчдад зориулсан
-          </div> */}
         </div>
 
         {/* Right: text */}
         <div>
-          <span className="text-indigo-600 font-semibold text-sm uppercase tracking-widest">Системийн тухай</span>
+          <span className="text-emerald-600 font-semibold text-sm uppercase tracking-widest">
+            Системийн тухай
+          </span>
           <h2 className="mt-3 text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight">
             Малчны хуулийн эрхийг{" "}
-            <span className="text-indigo-700">цахимаар хамгаалах</span>
+            <span className="text-emerald-700">цахимаар хамгаалах</span>
           </h2>
           <p className="mt-5 text-gray-600 text-base leading-relaxed">
-            МалГэрээ нь Монголын малчдыг хуулийн мэргэжилтнүүдтэй холбож, гэрээний үйл явцыг хурдан,
+            МалчныГэрээ нь Монголын малчдыг хуулийн мэргэжилтнүүдтэй холбож, гэрээний үйл явцыг хурдан,
             найдвартай, ил тод болгодог цахим платформ юм. Уламжлалт цаасан гэрээний оронд цахим
             гэрээ ашиглан цаг, хөрөнгөө хэмнэ.
           </p>
@@ -141,15 +162,21 @@ function AboutSection() {
             гэрээний загварыг манай систем дэмждэг.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row gap-4">
-            <a
-              href="/register"
-              className="inline-block px-8 py-3.5 bg-indigo-700 text-white font-semibold rounded-full hover:bg-indigo-800 hover:scale-105 transition-all duration-300 shadow-md text-center"
-            >
-              Бүртгүүлэх
-            </a>
+            {!isAuthenticated && (
+              <a
+                href="/register"
+                className="inline-block px-8 py-3.5 bg-emerald-600 text-white font-semibold
+                           rounded-full hover:bg-emerald-700 hover:scale-105
+                           transition-all duration-300 shadow-md text-center"
+              >
+                Бүртгүүлэх
+              </a>
+            )}
             <a
               href="/templates"
-              className="inline-block px-8 py-3.5 border-2 border-indigo-700 text-indigo-700 font-semibold rounded-full hover:bg-indigo-50 hover:scale-105 transition-all duration-300 text-center"
+              className="inline-block px-8 py-3.5 border-2 border-emerald-600 text-emerald-700
+                         font-semibold rounded-full hover:bg-emerald-50 hover:scale-105
+                         transition-all duration-300 text-center"
             >
               Загварууд харах
             </a>
@@ -160,20 +187,79 @@ function AboutSection() {
   );
 }
 
+function LivestockGallerySection() {
+  const ref = useReveal();
+  return (
+    <section className="py-24 bg-emerald-50/50">
+      <div className="max-w-6xl mx-auto px-6">
+        <div
+          ref={ref}
+          className="text-center mb-12 opacity-0 translate-y-8 transition-all duration-700"
+        >
+          <span className="text-emerald-600 font-semibold text-sm uppercase tracking-widest">
+            Малын төрөл
+          </span>
+          <h2 className="mt-3 text-3xl md:text-4xl font-extrabold text-gray-900">
+            Малчдад зориулсан бүхий л төрлийн гэрээ
+          </h2>
+          <p className="mt-4 text-gray-500 max-w-2xl mx-auto">
+            Хонь, ямаа, үхэр, адуу — таны малын төрөл бүрд тохирсон гэрээний загвар.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-4xl mx-auto">
+          {livestockGallery.map((item, i) => (
+            <LivestockCard key={item.label} src={item.src} alt={item.label} delay={i * 100} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function LivestockCard({ src, alt, delay }) {
+  const ref = useReveal();
+  return (
+    <div
+      ref={ref}
+      style={{ transitionDelay: `${delay}ms` }}
+      className="group relative overflow-hidden rounded-2xl shadow-md
+                 aspect-4/3
+                 hover:shadow-2xl hover:-translate-y-1
+                 transition-all duration-300 opacity-0 translate-y-8"
+    >
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        sizes="(max-width: 640px) 100vw, 50vw"
+        className="object-cover group-hover:scale-105 transition-transform duration-500"
+      />
+    </div>
+  );
+}
+
 function StatsSection() {
   const ref = useReveal();
   return (
-    <section className="py-16 bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-800">
+    <section className="relative overflow-hidden py-16
+                        bg-linear-to-br from-emerald-400 via-emerald-500 to-emerald-700">
+      {/* Decorative circles */}
+      <div className="absolute -right-20 -top-20 w-96 h-96 rounded-full bg-white/10" />
+      <div className="absolute -left-20 -bottom-20 w-80 h-80 rounded-full bg-white/5" />
+
       <div
         ref={ref}
-        className="max-w-5xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8 text-center opacity-0 translate-y-8 transition-all duration-700"
+        className="relative max-w-5xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8
+                   text-center opacity-0 translate-y-8 transition-all duration-700"
       >
         {stats.map((s) => (
           <div key={s.label} className="group">
-            <p className="text-4xl font-extrabold text-yellow-300 group-hover:scale-110 transition-transform duration-300 inline-block">
+            <p className="text-4xl font-extrabold text-white group-hover:scale-110
+                          transition-transform duration-300 inline-block drop-shadow-md">
               {s.value}
             </p>
-            <p className="mt-2 text-slate-300 text-sm">{s.label}</p>
+            <p className="mt-2 text-emerald-50 text-sm">{s.label}</p>
           </div>
         ))}
       </div>
@@ -190,11 +276,11 @@ function FeaturesSection() {
           ref={ref}
           className="text-center mb-16 opacity-0 translate-y-8 transition-all duration-700"
         >
-          <span className="text-indigo-600 font-semibold text-sm uppercase tracking-widest">
+          <span className="text-emerald-600 font-semibold text-sm uppercase tracking-widest">
             Малчин хуульчдад хэрэгтэй
           </span>
           <h2 className="mt-3 text-3xl md:text-4xl font-extrabold text-gray-900">
-            Яагаад МалГэрээ ашиглах вэ?
+            Яагаад МалчныГэрээ ашиглах вэ?
           </h2>
           <p className="mt-4 text-gray-500 max-w-xl mx-auto">
             Малчид болон хуулийн мэргэжилтнүүдийн өдөр тутмын хэрэгцээнд нийцсэн
@@ -218,9 +304,14 @@ function FeatureCard({ icon, title, desc, delay }) {
     <div
       ref={ref}
       style={{ transitionDelay: `${delay}ms` }}
-      className="group bg-white rounded-2xl p-8 shadow-sm border border-gray-100 hover:shadow-xl hover:-translate-y-1 hover:border-indigo-200 transition-all duration-300 opacity-0 translate-y-8"
+      className="group bg-white rounded-2xl p-8 shadow-sm border border-gray-100
+                 hover:shadow-xl hover:-translate-y-1 hover:border-emerald-200
+                 transition-all duration-300 opacity-0 translate-y-8"
     >
-      <div className="w-14 h-14 bg-indigo-50 text-indigo-700 rounded-xl flex items-center justify-center mb-5 group-hover:bg-indigo-700 group-hover:text-white transition-colors duration-300">
+      <div className="w-14 h-14 bg-emerald-50 text-emerald-700 rounded-xl
+                      flex items-center justify-center mb-5
+                      group-hover:bg-emerald-600 group-hover:text-white
+                      transition-colors duration-300">
         {icon}
       </div>
       <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
@@ -233,6 +324,7 @@ export default function Introduction() {
   return (
     <div>
       <AboutSection />
+      <LivestockGallerySection />
       <StatsSection />
       <FeaturesSection />
     </div>

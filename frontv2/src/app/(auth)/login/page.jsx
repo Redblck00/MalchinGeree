@@ -3,6 +3,7 @@ import { Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import LoginForm from '@/components/auth/LoginForm'
 import  useAuthStore  from '@/app/store/authStore'
+import VisitTracker from '@/components/analytics/VisitTracker'
 
 function LoginContent() {
   const router       = useRouter()
@@ -26,6 +27,7 @@ function LoginContent() {
 
   return (
     <div className="flex flex-col items-center gap-3 w-full">
+      <VisitTracker path="/login" />
       {reason && messages[reason] && (
         <div className="w-full max-w-110 px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-xl text-sm text-yellow-700 text-center">
           {messages[reason]}
