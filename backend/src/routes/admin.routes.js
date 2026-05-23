@@ -12,6 +12,10 @@ router.use(role('ADMIN'))
 // GET /api/admin/stats
 router.get('/stats',                  admin.getStats)
 
+// GET /api/admin/reports/visits?days=30
+// → Нэвтрээгүй зочдын статистик (KPI + series + top paths/referers)
+router.get('/reports/visits',         admin.getVisitReport)
+
 // ── TEMPLATE ──────────────────────────────────────────
 // GET    /api/admin/templates
 router.get('/templates',              admin.getTemplates)

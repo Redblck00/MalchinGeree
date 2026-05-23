@@ -5,6 +5,7 @@ const helmet  = require('helmet')
 const path    = require('path')
 const { pool }        = require('./config/db')
 const { apiLimiter }  = require('./middlewares/rateLimit.middleware')
+const { trackPublicVisit } = require('./middlewares/visitor.middleware')
 
 // ── Routes ────────────────────────────────────────────
 const authRoutes     = require('./routes/auth.routes')
@@ -38,7 +39,7 @@ app.use('/uploads/profiles',  express.static(path.join(__dirname, '..', 'uploads
 // app.use('/uploads/templates', ...) → intentionally NOT served
 
 // ── API Routes ─────────────────────────────────────────
-app.use('/api/public',    publicRoutes)
+app.use('/api/public',    trackPublicVisit, publicRoutes)
 app.use('/api/auth',      authRoutes)
 app.use('/api/users',     userRoutes)
 app.use('/api/admin',     adminRoutes)

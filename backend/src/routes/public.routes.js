@@ -3,6 +3,15 @@ const router  = express.Router()
 const { query }       = require('../config/db')
 const { verifyBlock } = require('../utils/blockchain')
 const { safeErrorMessage } = require('../utils/errors')
+const { recordVisit } = require('../middlewares/visitor.middleware')
+
+// ── POST /api/public/visit ─────────────────────────────
+// Frontend client component pages мэдэгдэх ping (home, login, register).
+// Body: { path: '/login', referer?: '...' } — source='page' гэж тэмдэглэнэ.
+router.post('/visit', (req, res) => {
+  recordVisit(req, 'page')
+  res.status(204).end()
+})
 
 // ── GET /api/public/templates ─────────────────────────
 // Бүх идэвхтэй гэрээний загварыг (нэвтрээгүй ч) харах

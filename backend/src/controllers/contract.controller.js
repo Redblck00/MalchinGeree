@@ -76,7 +76,8 @@ const getTemplates = async (req, res) => {
 const getTemplateById = async (req, res) => {
   try {
     const result = await query(
-      `SELECT template_id, name, description, schema_json, is_standard
+      `SELECT template_id, name, description, template_content,
+              schema_json, is_standard
        FROM contract_templates
        WHERE template_id = $1 AND is_active = true`,
       [req.params.id]
@@ -129,7 +130,7 @@ const createContract = async (req, res) => {
     } else {
       enriched.buyer  = { ...(filled_data_json.buyer  || {}), ...userInfo }
     }
-    // ── Атомар үүсгэлт ──────────────────────────────────
+    // ── Auto үүсгэлт ──────────────────────────────────
     // contracts + contract_versions + contract_participants 3 INSERT-ийг
     // нэг транзакцид багтаана. Аль нэг нь алдвал бүгд rollback хийгдэнэ —
     // orphan contract эсвэл version-гүй contract үлдэхээс сэргийлнэ.
@@ -792,7 +793,7 @@ const requestSignOtp = async (req, res) => {
     if (part.my_status === 'SIGNED') {
       return res.status(400).json({ message: 'Та аль хэдийн гарын үсэг зурсан' })
     }
-    if (!['DRAFT', 'SENT'].includes(part.contract_status)) {
+    if (!['DRAFT', 'SENT', 'PARTIALLY_SIGNED'].includes(part.contract_status)) {
       return res.status(400).json({ message: 'Энэ статуст гарын үсэг зурах боломжгүй' })
     }
 
@@ -863,7 +864,7 @@ const signContract = async (req, res) => {
     if (part.my_status === 'SIGNED') return res.status(400).json({ message: 'Аль хэдийн гарын үсэг зурсан' })
 
     // Цуцалсан/баталгаажсан/хаагдсан гэрээг дахин зурах боломжгүй
-    if (!['DRAFT', 'SENT'].includes(part.contract_status)) {
+    if (!['DRAFT', 'SENT', 'PARTIALLY_SIGNED'].includes(part.contract_status)) {
       return res.status(400).json({ message: 'Энэ статуст гарын үсэг зурах боломжгүй' })
     }
 

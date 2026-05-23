@@ -212,6 +212,102 @@ const getStats = async (req, res) => {
   }
 }
 
+// ── ЗОЧДЫН ТАЙЛАН (нэвтрээгүй хандалт) ────────────────
+// GET /api/admin/reports/visits?days=30
+//   → KPI + өдрийн series + top paths + browser/referer breakdown
+const getVisitReport = async (req, res) => {
+  try {
+    const days = Math.max(1, Math.min(parseInt(req.query.days) || 30, 365))
+
+    const [kpi, series, topPaths, topReferers, sourceMix, hourly] = await Promise.all([
+      // ── 1. KPI ───────────────────────────────────────
+      query(
+        `SELECT
+           COUNT(*)::INT                                  AS total_visits,
+           COUNT(DISTINCT session_hash)::INT              AS unique_visitors,
+           COUNT(*) FILTER (WHERE visited_at >= NOW() - INTERVAL '24 hours')::INT AS visits_24h,
+           COUNT(DISTINCT session_hash) FILTER
+             (WHERE visited_at >= NOW() - INTERVAL '24 hours')::INT AS unique_24h
+         FROM public_visits
+         WHERE visited_at >= NOW() - ($1 || ' days')::INTERVAL`,
+        [days]
+      ),
+
+      // ── 2. Өдрийн series ─────────────────────────────
+      query(
+        `SELECT
+           DATE_TRUNC('day', visited_at)::DATE   AS day,
+           COUNT(*)::INT                          AS visits,
+           COUNT(DISTINCT session_hash)::INT      AS uniques
+         FROM public_visits
+         WHERE visited_at >= NOW() - ($1 || ' days')::INTERVAL
+         GROUP BY 1
+         ORDER BY 1`,
+        [days]
+      ),
+
+      // ── 3. Top paths ────────────────────────────────
+      query(
+        `SELECT path,
+                COUNT(*)::INT                     AS hits,
+                COUNT(DISTINCT session_hash)::INT AS uniques
+         FROM public_visits
+         WHERE visited_at >= NOW() - ($1 || ' days')::INTERVAL
+         GROUP BY path
+         ORDER BY hits DESC
+         LIMIT 10`,
+        [days]
+      ),
+
+      // ── 4. Top referer (хаанаас ирсэн) ──────────────
+      query(
+        `SELECT COALESCE(NULLIF(referer, ''), 'direct') AS referer,
+                COUNT(*)::INT                            AS hits
+         FROM public_visits
+         WHERE visited_at >= NOW() - ($1 || ' days')::INTERVAL
+         GROUP BY 1
+         ORDER BY hits DESC
+         LIMIT 8`,
+        [days]
+      ),
+
+      // ── 5. Source mix: page vs api ──────────────────
+      query(
+        `SELECT source, COUNT(*)::INT AS hits
+         FROM public_visits
+         WHERE visited_at >= NOW() - ($1 || ' days')::INTERVAL
+         GROUP BY source`,
+        [days]
+      ),
+
+      // ── 6. Цагийн distribution (24 цагт) ────────────
+      query(
+        `SELECT EXTRACT(HOUR FROM visited_at)::INT AS hour,
+                COUNT(*)::INT                       AS hits
+         FROM public_visits
+         WHERE visited_at >= NOW() - ($1 || ' days')::INTERVAL
+         GROUP BY 1
+         ORDER BY 1`,
+        [days]
+      ),
+    ])
+
+    res.json({
+      data: {
+        range_days:  days,
+        kpi:         kpi.rows[0],
+        series:      series.rows,
+        top_paths:   topPaths.rows,
+        top_referers:topReferers.rows,
+        source_mix:  sourceMix.rows,
+        hourly:      hourly.rows,
+      },
+    })
+  } catch (err) {
+    res.status(400).json({ message: safeErrorMessage(err) })
+  }
+}
+
 // ── ЛОГ ───────────────────────────────────────────────
 
 const getLogs = async (req, res) => {
@@ -238,4 +334,5 @@ module.exports = {
   getTemplates, getTemplateById, createTemplate, updateTemplate, deleteTemplate,
   getUsers, updateUserStatus,
   getContracts, updateContractStatus, getStats, getLogs,
+  getVisitReport,
 }
