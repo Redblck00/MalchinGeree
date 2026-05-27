@@ -15,7 +15,7 @@ const hashToken = (token) => crypto.createHash('sha256').update(token).digest('h
 
 // ── Гарын үсгийн blob валидаци ────────────────────────
 // XSS халдлагаас сэргийлэх — зөвхөн base64-кодлогдсон data URL зөвшөөрнө.
-// (signContract endpoint-д шинээр оруулж буй гарын үсгийг шалгахад ашиглана)
+// sign blob
 const SIGNATURE_BLOB_RE = /^data:image\/(png|jpeg|jpg|svg\+xml);base64,[A-Za-z0-9+/=]+$/
 const MAX_SIGNATURE_LEN = 500_000
 const isValidSignatureBlob = (blob) =>
@@ -24,10 +24,7 @@ const isValidSignatureBlob = (blob) =>
   blob.length <= MAX_SIGNATURE_LEN &&
   SIGNATURE_BLOB_RE.test(blob)
 
-// ── placeholder_key валидаци ──────────────────────────
-// Хууртагдсан/санамсаргүй түлхүүрээр гарын үсэг хадгалахаас сэргийлнэ.
-// Жишээ: 'signature', 'seller.signature', 'buyer.signature', 'witness_signature'.
-// Маягт: жижиг үсэг, доогуур зураас, нэг түвшин dot (a.b). Урт 1-50.
+
 const PLACEHOLDER_KEY_RE = /^[a-z][a-z0-9_]{0,40}(\.[a-z][a-z0-9_]{0,40})?$/
 const isValidPlaceholderKey = (k) =>
   typeof k === 'string' && PLACEHOLDER_KEY_RE.test(k)
@@ -224,7 +221,7 @@ const getMyContracts = async (req, res) => {
   }
 }
 
-// ── Нэг гэрээний дэлгэрэнгүй ─────────────────────────
+// ── Нэг гэрээний дэлгэрэнгүй 
 
 const getContractById = async (req, res) => {
   try {
@@ -492,14 +489,6 @@ const getContractById = async (req, res) => {
     res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
-// ── Гэрээ засах (DRAFT үед, үүсгэгч) ──────────────────
-// Migration 007-н дараа:
-//   • contract_versions — ганц row, UPDATE хийнэ (INSERT биш)
-//   • contract_edit_log — JSON diff аудит-д INSERT
-//   • Гарын үсэг зурагдсан бол засах боломжгүй (LOCKED)
-// Анхаар: Шинэ урсгал (counterparty засаж буцаах) дараагийн endpoint-д
-// тусдаа хийгдэнэ. Энд зөвхөн үүсгэгчийн DRAFT засах flow.
-
 const updateContract = async (req, res) => {
   try {
     const { id } = req.params
@@ -625,9 +614,6 @@ const updateContract = async (req, res) => {
     res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
-
-// ── Гэрээ илгээх ─────────────────────────────────────
-
 const sendContract = async (req, res) => {
   try {
     const { id } = req.params
@@ -757,21 +743,13 @@ const sendContract = async (req, res) => {
   }
 }
 
-// ── Гарын үсгийн OTP recipient scope ─────────────────
-// "sign:<email>:<contractId>" — энэ форматаар хадгалснаар бүртгэлийн
-// OTP-той зөрөлдөхгүй (saveOtp нь recipient-аар хайдаг). Нэг гэрээ нь
-// нөгөөг хүчингүй болгохгүй.
+//Gariin usgiin OTP recipient scope
+// "sign:<email>:<contractId>" 
+
 const buildSignOtpRecipient = (email, contractId) =>
   `sign:${String(email || '').toLowerCase()}:${contractId}`
 
-// ── POST /api/contracts/:id/sign/request-otp ─────────
-// Гарын үсэг зурахаас өмнө хэрэглэгчийн НЭВТЭРСЭН имэйл рүү OTP илгээнэ.
-// Аюулгүй байдал:
-//   • req.user.email-ийг хэрэглэнэ (хэрэглэгч өөр имэйл оруулах боломжгүй)
-//   • Зөвхөн оролцогч өөрөө хүсэх боломжтой
-//   • DRAFT/SENT статуст л OTP илгээнэ — CANCELLED/COMPLETED-д үгүй
-//   • Аль хэдийн SIGNED participant дахин OTP хүсэх боломжгүй
-//   • Rate limit middleware-ээр 15 минутад 5 удаа хүртэл
+// ── POST /api/contracts/:id/sign/request-otp 
 const requestSignOtp = async (req, res) => {
   try {
     const { id } = req.params
@@ -819,8 +797,7 @@ const requestSignOtp = async (req, res) => {
     res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
-
-// Имэйлийн ихэнхийг далдалж буцаах — `b***@gmail.com`
+//email link useg
 const maskEmail = (email) => {
   if (!email || typeof email !== 'string') return ''
   const [name, domain] = email.split('@')
@@ -829,19 +806,16 @@ const maskEmail = (email) => {
   return `${head}${'*'.repeat(Math.max(name.length - 1, 2))}@${domain}`
 }
 
-// ── Гарын үсэг зурах ─────────────────────────────────
-
+// ── Garin usgiin OTP-g шалгах + гарын үсэг хадгалах 
 const signContract = async (req, res) => {
   try {
     const { id } = req.params
     const { signature_blob, placeholder_key = 'signature', otp_code } = req.body
     if (!signature_blob) return res.status(400).json({ message: 'Гарын үсэг шаардлагатай' })
-    // XSS-аас сэргийлэх — зөвхөн base64-data URL формат зөвшөөрнө
+    // XSS-аас сэргийлэх — зөвхөн base64-data URL 
     if (!isValidSignatureBlob(signature_blob)) {
       return res.status(400).json({ message: 'Гарын үсгийн формат буруу эсвэл хэт том' })
     }
-    // placeholder_key валидаци — санамсаргүй/хууртагдсан түлхүүр хааж
-    // 'phantom' гарын үсэг үүсгэхээс сэргийлнэ
     if (!isValidPlaceholderKey(placeholder_key)) {
       return res.status(400).json({ message: 'Гарын үсгийн талбарын нэр буруу' })
     }

@@ -7,21 +7,18 @@ const { sendOtpEmail }                                = require('../utils/email'
 const { log, LOG }                                    = require('../utils/logger')
 const { safeErrorMessage }                            = require('../utils/errors')
 
-// ── POST /api/auth/register ───────────────────────────
-// Хэрэглэгчийг DB-д ОРУУЛАХГҮЙ — OTP баталгаажсан үед л үүснэ
+//  POST /api/auth/register
 const register = async (req, res) => {
   try {
     const { first_name, last_name, phone, email, password } = req.body
     if (!first_name || !last_name || !phone || !email || !password) {
       return res.status(400).json({ message: 'Бүх талбарыг бөглөнө үү' })
     }
-    // Bcrypt 72 байтаас урт нууц үгийг яаж ч хайчилдаг тул хязгаарлая.
-    // 10MB-н нууц үгээр bcrypt-ийг блоклож DoS хийхээс мөн сэргийлнэ.
-    if (typeof password !== 'string' || password.length < 6 || password.length > 72) {
+   
+    if (typeof password !== 'string' || password.length < 6 || password.lngth > 72) {
       return res.status(400).json({ message: 'Нууц үг 6-72 тэмдэгттэй байх ёстой' })
     }
 
-    // users хүснэгтэд аль хэдийн бүртгэлтэй эсэх шалгах
     const existing = await query(
       `SELECT user_id FROM users WHERE email = $1 OR phone = $2`,
       [email.toLowerCase(), phone]
@@ -32,7 +29,7 @@ const register = async (req, res) => {
 
     const password_hash = await bcrypt.hash(password, 12)
 
-    // Бүртгэлийн мэдээллийг OTP-тэй хамт DB-д хадгалах (users-д оруулахгүй)
+
     const code = generateOtp()
     await saveOtp(email, code, 'EMAIL', undefined, {
       first_name,
@@ -50,16 +47,13 @@ const register = async (req, res) => {
   }
 }
 
-// ── POST /api/auth/verify-otp ─────────────────────────
-// OTP зөв бол users хүснэгтэд хэрэглэгч үүсгэнэ
+// ── POST /api/auth/verify-otp 
 const verifyOtpHandler = async (req, res) => {
   try {
     const { phone, code } = req.body
     if (!phone || !code) {
       return res.status(400).json({ message: 'Утас болон OTP код шаардлагатай' })
     }
-
-    // users-д аль хэдийн бүртгэлтэй бол (login хийх)
     const existingUser = await query(
       `SELECT user_id, email, first_name, last_name, phone, user_type, status
        FROM users WHERE phone = $1`,
@@ -69,7 +63,6 @@ const verifyOtpHandler = async (req, res) => {
       return res.status(400).json({ message: 'Бүртгэл аль хэдийн баталгаажсан байна' })
     }
 
-    // pending_data-аас phone-ийн email-ийг олох
     const pending = await findPendingByPhone(phone)
     if (!pending) {
       return res.status(400).json({ message: 'OTP код олдсонгүй эсвэл хугацаа дууссан. Дахин бүртгүүлнэ үү' })
