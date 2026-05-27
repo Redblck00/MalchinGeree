@@ -81,13 +81,44 @@ const CONTRACT_FIELDS = [
   },
 ]
 
+// Хувийн талбарт зөвшөөрөгдсөн type-ууд (admin UI button-нд харагдана)
+export const CUSTOM_FIELD_TYPES = [
+  { value: 'text',     label: 'Текст',     sample: 'Aa',    hint: 'Ердийн мөр' },
+  { value: 'number',   label: 'Бүхэл тоо', sample: '123',   hint: 'Бүхэл утга' },
+  { value: 'float',    label: 'Бутархай',  sample: '12.5',  hint: 'Бутархай тоо' },
+  { value: 'date',     label: 'Огноо',     sample: '📅',    hint: 'YYYY-MM-DD' },
+  { value: 'textarea', label: 'Урт текст', sample: '¶',     hint: 'Олон мөрт' },
+]
+
+// Custom field key-ийг шалгах (a-z, 0-9, _ — эхэлж үсэг)
+export const validateCustomKey = (key) => {
+  if (!key) return 'Key шаардлагатай'
+  if (!/^[a-z][a-z0-9_]*$/.test(key)) {
+    return 'Жижиг үсэг, тоо, _ зөвхөн (үсгээр эхэлнэ)'
+  }
+  return null
+}
+
+// Preset CONTRACT_FIELDS-ийн бүх key-г Set болгож буцаана
+let _presetKeys
+export const getPresetKeys = () => {
+  if (_presetKeys) return _presetKeys
+  const s = new Set()
+  CONTRACT_FIELDS.forEach(g => g.fields.forEach(f => s.add(f.key)))
+  _presetKeys = s
+  return s
+}
+
 // schema_json.fields массив үүсгэх helper
-// Template хадгалахад ашиглана
-export const buildSchemaJson = (usedKeys) => {
+// usedKeys      — template_content-д ашиглагдсан key-нүүд
+// customFields  — admin нэмсэн хувийн талбарууд [{ key, label, type }]
+//   → schema-д custom: true тэмдэглэгээтэй гарна
+export const buildSchemaJson = (usedKeys, customFields = []) => {
   const fieldMap = {}
   CONTRACT_FIELDS.forEach(group => {
     group.fields.forEach(f => { fieldMap[f.key] = f })
   })
+  customFields.forEach(f => { fieldMap[f.key] = { ...f, custom: true } })
 
   const fields = []
   const addedObjects = new Set()
@@ -115,11 +146,27 @@ export const buildSchemaJson = (usedKeys) => {
       }
     } else {
       const f = fieldMap[key]
-      if (f) fields.push({ type: f.type || 'field', key })
+      if (f) {
+        const entry = { type: f.type || 'field', key }
+        // Custom field бол label, custom flag хадгална → ContractForm-д ашиглана
+        if (f.custom) {
+          entry.label  = f.label
+          entry.custom = true
+        }
+        fields.push(entry)
+      }
     }
   })
 
   return { fields }
+}
+
+// schema_json-аас custom field-уудыг буцаах (edit горимд load хийхэд хэрэгтэй)
+export const extractCustomFields = (schemaJson) => {
+  if (!schemaJson?.fields) return []
+  return schemaJson.fields
+    .filter(f => f.custom && f.key && !f.key.includes('.'))
+    .map(f => ({ key: f.key, label: f.label || f.key, type: f.type || 'text' }))
 }
 
 export default CONTRACT_FIELDS

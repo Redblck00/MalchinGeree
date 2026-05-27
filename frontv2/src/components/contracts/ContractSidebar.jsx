@@ -106,7 +106,7 @@ function ParticipantCard({ p, creatorRole, isMe }) {
     : (creatorRole === 'seller' ? 'bg-orange-500'  : 'bg-emerald-500')
 
   return (
-    <div className="border border-gray-200 rounded-xl bg-white overflow-hidden">
+    <div className="border border-[#ece8df] rounded-xl bg-white overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-3 p-3 cursor-pointer bg-white border-0
@@ -196,7 +196,7 @@ function SmallButton({ icon, children, onClick }) {
     <button
       onClick={onClick}
       className="flex-1 inline-flex items-center justify-center gap-1.5
-                 px-3 py-1.5 text-xs text-gray-700 border border-gray-200
+                 px-3 py-1.5 text-xs text-gray-700 border border-[#ece8df]
                  rounded-lg hover:bg-gray-50 cursor-pointer bg-white"
     >
       {icon} {children}
@@ -222,7 +222,7 @@ function ParticipantsTab({ contract, currentUserId, onAddClick }) {
       {contract.status === 'DRAFT' && onAddClick && (
         <button
           onClick={onAddClick}
-          className="border-2 border-dashed border-gray-200 rounded-xl py-3 text-sm
+          className="border-2 border-dashed border-[#ece8df] rounded-xl py-3 text-sm
                      text-[#3d3a8c] hover:border-[#3d3a8c] hover:bg-[#3d3a8c]/5
                      cursor-pointer bg-white inline-flex items-center justify-center gap-1.5"
         >
@@ -284,7 +284,7 @@ function AttachmentsTab({
             const isOwner = a.uploaded_by === currentUserId
             return (
               <div key={a.attachment_id}
-                   className="flex items-center gap-2 p-2 border border-gray-200 rounded-lg bg-white">
+                   className="flex items-center gap-2 p-2 border border-[#ece8df] rounded-lg bg-white">
                 {/* Thumb / icon */}
                 <div className="shrink-0 w-10 h-10 rounded bg-gray-50 border border-gray-100
                                 flex items-center justify-center overflow-hidden">
@@ -325,7 +325,7 @@ function AttachmentsTab({
 
       {/* Upload zone */}
       {locked ? (
-        <div className="border-2 border-dashed border-gray-200 rounded-xl py-4
+        <div className="border-2 border-dashed border-[#ece8df] rounded-xl py-4
                         flex flex-col items-center gap-1 text-center bg-gray-50">
           <p className="text-xs text-gray-500 m-0">
             🔒 Гарын үсэг зурагдсан учир хавсралт нэмэх боломжгүй
@@ -335,7 +335,7 @@ function AttachmentsTab({
         <button
           onClick={handlePick}
           disabled={uploading}
-          className="border-2 border-dashed border-gray-200 rounded-xl py-5
+          className="border-2 border-dashed border-[#ece8df] rounded-xl py-5
                      flex flex-col items-center gap-1.5 text-center cursor-pointer
                      hover:border-[#3d3a8c] hover:bg-[#3d3a8c]/5 transition-colors
                      bg-white disabled:opacity-50"
@@ -539,7 +539,7 @@ function HistoryTab({
             onChange={(e) => setQuickNote(e.target.value.slice(0, 1000))}
             rows={3}
             placeholder="Жишээ: Нэгж үнийг 480к → 500к болгож тохиров уу..."
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg
+            className="w-full px-3 py-2 text-sm border border-[#ece8df] rounded-lg
                        outline-none focus:border-[#3d3a8c] focus:ring-1 focus:ring-[#3d3a8c]/30
                        bg-white resize-none"
           />
@@ -565,7 +565,7 @@ function HistoryTab({
       )}
 
       {!canComment && contract.status === 'SENT' && (
-        <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200
+        <p className="text-[11px] text-gray-500 bg-gray-50 border border-[#ece8df]
                       rounded-lg px-3 py-2 m-0 inline-flex items-start gap-1.5">
           <MdInfoOutline size={12} className="shrink-0 mt-0.5" />
           Одоо нөгөө талын ээлж. Тайлбар нэмэхийн тулд таны ээлж ирэхийг хүлээнэ үү.
@@ -615,16 +615,16 @@ function BottomAction({
           value={recipientEmail}
           onChange={(e) => setRecipientEmail(e.target.value)}
           placeholder="Хүлээн авагчийн имэйл"
-          className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-200
+          className="w-full px-3 py-2 text-sm text-slate-900 font-sans border border-[#ece8df]
                      rounded-lg outline-none focus:border-[#3d3a8c]
-                     placeholder:text-gray-400 bg-white"
+                     placeholder:text-slate-400 bg-white"
         />
         <button
           onClick={onSend}
           disabled={!recipientEmail || sending}
           className="w-full inline-flex items-center justify-center gap-1.5
                      px-4 py-2.5 text-sm font-semibold text-white
-                     bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer border-0
+                     bg-[#3d3a8c] hover:bg-[#2d2a6e] rounded-lg cursor-pointer border-0
                      disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <MdSend size={14} /> {sending ? 'Илгээж байна...' : 'Илгээх'}
@@ -642,7 +642,7 @@ function BottomAction({
           disabled={sending}
           className="w-full inline-flex items-center justify-center gap-1.5
                      px-4 py-2.5 text-sm font-semibold text-white
-                     bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer border-0
+                     bg-[#3d3a8c] hover:bg-[#2d2a6e] rounded-lg cursor-pointer border-0
                      disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <MdSend size={14} /> {sending ? 'Илгээж байна...' : 'Илгээх'}
@@ -720,7 +720,7 @@ function BottomAction({
       CLOSED:    { icon: <MdCheckCircle size={16} />,  label: 'Гэрээ хаагдсан',                cls: 'bg-slate-100 text-slate-700 border-slate-200' },
       CANCELLED: { icon: <MdCancel size={16} />,       label: 'Цуцлагдсан',                    cls: 'bg-red-50 text-red-700 border-red-200' },
       DECLINED:  { icon: <MdBlock size={16} />,        label: 'Татгалзсан',                     cls: 'bg-red-50 text-red-700 border-red-200' },
-      EXPIRED:   { icon: <MdSchedule size={16} />,     label: 'Хугацаа дууссан',                cls: 'bg-gray-100 text-gray-600 border-gray-200' },
+      EXPIRED:   { icon: <MdSchedule size={16} />,     label: 'Хугацаа дууссан',                cls: 'bg-gray-100 text-gray-600 border-[#ece8df]' },
     }[status]
     return (
       <div className={`rounded-lg py-2.5 px-4 text-center border text-sm font-semibold
@@ -813,14 +813,15 @@ export default function ContractSidebar({
   return (
     <>
       {/* Sidebar нь баруун ирмэгт нялзана: бүтэн өндөр, sharp corners */}
-      <div className="h-full w-full bg-white flex flex-col gap-4 p-5 print:hidden">
+      <div className="h-full w-full bg-[#fdfcf9] font-forum flex flex-col gap-4 p-5 print:hidden
+                      border-l border-[#ece8df]">
 
         {/* Header — title + number badge */}
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-base font-bold text-gray-900 m-0">
+          <h2 className="text-xl text-slate-900 m-0 tracking-wide">
             Гэрээний дэлгэрэнгүй
           </h2>
-          <span className="text-[11px] font-mono text-gray-500 bg-gray-100
+          <span className="text-[11px] font-mono text-[#3d3a8c] bg-[#3d3a8c]/10
                            rounded-full px-2 py-0.5">
             {contract.contract_number}
           </span>
@@ -828,22 +829,22 @@ export default function ContractSidebar({
 
         {/* Progress bar */}
         <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between text-xs text-gray-600">
-            <span>Гүйцэтгэл</span>
-            <span className="font-semibold">
+          <div className="flex items-center justify-between text-xs text-slate-600">
+            <span className="tracking-wide">Гүйцэтгэл</span>
+            <span className="font-sans font-semibold text-slate-700">
               {signedCount}/{totalCount} · {progress}%
             </span>
           </div>
-          <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div className="w-full h-1.5 bg-[#ece8df] rounded-full overflow-hidden">
             <div
-              className="h-full bg-linear-to-r from-cyan-400 to-blue-600 transition-all"
+              className="h-full bg-linear-to-r from-[#6b67c4] to-[#3d3a8c] transition-all"
               style={{ width: `${progress}%` }}
             />
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-gray-50 rounded-lg p-1">
+        <div className="flex gap-1 bg-[#f3efe6] rounded-lg p-1">
           <TabButton active={tab === 'participants'} onClick={() => setTab('participants')}>
             Талууд <Counter>{totalCount}</Counter>
           </TabButton>
@@ -912,7 +913,7 @@ export default function ContractSidebar({
         </div>
 
         {/* Bottom action — доод хэсэгт нялзана */}
-        <div className="pt-3 border-t border-gray-100">
+        <div className="pt-3 border-t border-[#ece8df]">
           <BottomAction
             contract={contract}
             isCreator={isCreator}
@@ -955,11 +956,11 @@ function TabButton({ active, onClick, children }) {
     <button
       onClick={onClick}
       className={`flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-1.5
-                  text-xs font-semibold rounded-md cursor-pointer border-0
+                  text-[13px] tracking-wide rounded-md cursor-pointer border-0
                   transition-colors
                   ${active
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'bg-transparent text-gray-500 hover:text-gray-700'}`}
+                    ? 'bg-white text-[#3d3a8c] shadow-sm'
+                    : 'bg-transparent text-slate-500 hover:text-slate-800'}`}
     >
       {children}
     </button>
@@ -970,7 +971,7 @@ function Counter({ children }) {
   if (children === 0 || children === '0') return null
   return (
     <span className="inline-flex items-center justify-center min-w-4 h-4 px-1
-                     bg-blue-500 text-white rounded-full text-[10px] font-bold">
+                     bg-[#3d3a8c] text-white rounded-full text-[10px] font-sans font-bold">
       {children}
     </span>
   )

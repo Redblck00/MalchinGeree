@@ -19,9 +19,12 @@ import {
   MdDragIndicator,
 } from 'react-icons/md'
 import api from '@/lib/api'
-import CONTRACT_FIELDS, { buildSchemaJson } from '@/lib/contractFields'
+import CONTRACT_FIELDS, {
+  buildSchemaJson, extractCustomFields, CUSTOM_FIELD_TYPES,
+} from '@/lib/contractFields'
 import { renderChips } from '@/lib/templateRender'
 import TemplatePreview from '@/components/templates/TemplatePreview'
+import CustomFieldModal from '@/components/templates/CustomFieldModal'
 
 // ── Field-ийн өнгө ────────────────────────────────────
 const FIELD_COLORS = {
@@ -30,10 +33,12 @@ const FIELD_COLORS = {
   green:     { bg: '#E1F5EE', border: '#1D9E75', text: '#04342C', dot: '#1D9E75' },
   signature: { bg: '#EAF3DE', border: '#97C459', text: '#173404', dot: '#5A8A2A' },
   auto:      { bg: '#FFF8E1', border: '#FFD54F', text: '#7B5E00', dot: '#C39B00' },
+  custom:    { bg: '#FEF3F2', border: '#FECDCA', text: '#9F1239', dot: '#E11D48' },
 }
 
 const getColor = (field) => {
   if (!field) return FIELD_COLORS.default
+  if (field.custom) return FIELD_COLORS.custom
   if (field.type === 'signature') return FIELD_COLORS.signature
   if (field.color) return FIELD_COLORS[field.color] || FIELD_COLORS.default
   if (field.auto) return FIELD_COLORS.auto
@@ -44,6 +49,7 @@ const getColor = (field) => {
 const TYPE_ICONS = {
   text:       MdShortText,
   number:     MdNumbers,
+  float:      MdNumbers,
   date:       MdCalendarToday,
   textarea:   MdNotes,
   select:     MdArrowDropDownCircle,
@@ -167,6 +173,14 @@ function TemplateEditor({ onSaved, editing, onCancel }) {
   const [query,       setQuery]       = useState('')
   const [collapsed,   setCollapsed]   = useState({}) // { groupName: true }
 
+  // ── Custom fields (admin-аас үүсгэсэн хувийн талбарууд) ────
+  const [customFields, setCustomFields] = useState(
+    () => extractCustomFields(editing?.schema_json)
+  )
+  const [modalOpen,    setModalOpen]    = useState(false)
+  const [modalType,    setModalType]    = useState('text')
+  const [editingField, setEditingField] = useState(null)
+
   const textareaRef = useRef(null)
   const cursorPosRef = useRef(null)
 
@@ -227,13 +241,47 @@ function TemplateEditor({ onSaved, editing, onCancel }) {
     })),
     [content]
   )
-  const usedKeys = usedMatches.map(m => m.key)
+  const usedKeys = [...new Set(usedMatches.map(m => m.key))]
   const charCount = content.length
 
   const allFieldsFlat = useMemo(
-    () => CONTRACT_FIELDS.flatMap(g => g.fields),
-    []
+    () => [
+      ...CONTRACT_FIELDS.flatMap(g => g.fields),
+      ...customFields.map(f => ({ ...f, custom: true })),
+    ],
+    [customFields]
   )
+
+  // Custom field action-ууд
+  const openCreateModal = (type) => {
+    setModalType(type)
+    setEditingField(null)
+    setModalOpen(true)
+  }
+  const openEditModal = (field) => {
+    setEditingField(field)
+    setModalType(field.type)
+    setModalOpen(true)
+  }
+  const handleSaveCustomField = (field) => {
+    setCustomFields(prev => {
+      if (editingField) {
+        return prev.map(f => f.key === editingField.key ? field : f)
+      }
+      return [...prev, field]
+    })
+    // Засаж байгаа field-ийн key-г өөрчилсөн бол template_content-д шинэчлэх
+    if (editingField && editingField.key !== field.key) {
+      const re = new RegExp(`\\{\\{${editingField.key}\\}\\}`, 'g')
+      setContent(c => c.replace(re, `{{${field.key}}}`))
+    }
+  }
+  const handleDeleteCustomField = (key) => {
+    if (!confirm(`"${key}" талбарыг устгах уу? Template дотроос ч устгагдана.`)) return
+    setCustomFields(prev => prev.filter(f => f.key !== key))
+    // Template-аас placeholder арилгана
+    setContent(c => c.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), ''))
+  }
 
   // Right panel — chip дээр дарвал textarea-д тэр placeholder сонгох
   const handleUsedClick = (match) => {
@@ -274,7 +322,7 @@ function TemplateEditor({ onSaved, editing, onCancel }) {
     setLoading(true)
     setError(null)
     try {
-      const schema_json = buildSchemaJson(usedKeys)
+      const schema_json = buildSchemaJson(usedKeys, customFields)
       const body = { name, description, template_content: content, schema_json, is_standard: isStandard }
 
       if (editing) {
@@ -354,6 +402,64 @@ function TemplateEditor({ onSaved, editing, onCancel }) {
             </div>
           </div>
           <div className="flex-1 overflow-y-auto p-2">
+
+            {/* ── + Шинэ талбар (Custom) ─────────────────── */}
+            <div className="mb-3 p-2 rounded-lg bg-linear-to-br from-rose-50 to-pink-50
+                            border border-rose-100">
+              <p className="text-[10px] font-semibold text-rose-700 uppercase tracking-wider mb-1.5 px-0.5">
+                + Хувийн талбар нэмэх
+              </p>
+              <div className="grid grid-cols-5 gap-1">
+                {CUSTOM_FIELD_TYPES.map(t => {
+                  const Icon = TYPE_ICONS[t.value] || MdShortText
+                  return (
+                    <button
+                      key={t.value}
+                      onClick={() => openCreateModal(t.value)}
+                      title={`${t.label} — ${t.hint}`}
+                      className="flex flex-col items-center gap-0.5 py-1.5 rounded-md
+                                 bg-white border border-rose-200 text-rose-700
+                                 hover:bg-rose-100 hover:border-rose-300 hover:shadow-sm
+                                 transition-all cursor-pointer"
+                    >
+                      <Icon size={13} />
+                      <span className="text-[9px] font-semibold leading-none">{t.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* ── Custom fields list ──────────────────────── */}
+            {customFields.length > 0 && (
+              <div className="mb-2">
+                <div className="flex items-center justify-between px-1.5 py-1">
+                  <span className="text-[11px] font-semibold text-rose-700 uppercase tracking-wide">
+                    Хувийн талбарууд
+                    <span className="ml-1.5 text-rose-400 normal-case font-normal">
+                      ({customFields.length})
+                    </span>
+                  </span>
+                </div>
+                <div className="mt-1">
+                  {customFields
+                    .filter(f => !query ||
+                      f.label.toLowerCase().includes(query.toLowerCase()) ||
+                      f.key.toLowerCase().includes(query.toLowerCase()))
+                    .map((field) => (
+                      <CustomDraggableField
+                        key={field.key}
+                        field={field}
+                        onInsert={handleInsertKey}
+                        onEdit={() => openEditModal(field)}
+                        onDelete={() => handleDeleteCustomField(field.key)}
+                      />
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Preset groups ──────────────────────────── */}
             {CONTRACT_FIELDS.map((group, gi) => (
               <FieldGroup
                 key={gi}
@@ -365,6 +471,10 @@ function TemplateEditor({ onSaved, editing, onCancel }) {
               />
             ))}
             {query &&
+             customFields.every(f =>
+               !f.label.toLowerCase().includes(query.toLowerCase()) &&
+               !f.key.toLowerCase().includes(query.toLowerCase())
+             ) &&
              CONTRACT_FIELDS.every(g =>
                g.fields.every(f =>
                  !f.label.toLowerCase().includes(query.toLowerCase()) &&
@@ -558,7 +668,7 @@ function TemplateEditor({ onSaved, editing, onCancel }) {
                 </summary>
                 <pre className="mt-1.5 p-2 bg-gray-900 text-green-400 text-[10px] rounded-lg
                                 overflow-auto max-h-48 whitespace-pre-wrap leading-snug">
-{JSON.stringify(buildSchemaJson(usedKeys), null, 2)}
+{JSON.stringify(buildSchemaJson(usedKeys, customFields), null, 2)}
                 </pre>
               </details>
             )}
@@ -581,6 +691,79 @@ function TemplateEditor({ onSaved, editing, onCancel }) {
             Цуцлах
           </button>
         )}
+      </div>
+
+      {/* Custom field modal */}
+      <CustomFieldModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSave={handleSaveCustomField}
+        defaultType={modalType}
+        editing={editingField}
+        existingKeys={new Set(customFields.map(f => f.key))}
+      />
+    </div>
+  )
+}
+
+// ── Custom draggable field — edit/delete товчуудтай ───
+function CustomDraggableField({ field, onInsert, onEdit, onDelete }) {
+  const c = FIELD_COLORS.custom
+  const Icon = TYPE_ICONS[field.type] || MdShortText
+
+  const handleDragStart = (e) => {
+    e.dataTransfer.setData('text/plain', `{{${field.key}}}`)
+    e.dataTransfer.setData('field-key', field.key)
+    e.dataTransfer.effectAllowed = 'copy'
+  }
+
+  return (
+    <div
+      draggable
+      onDragStart={handleDragStart}
+      title={`{{${field.key}}} · ${field.type}`}
+      style={{ borderColor: c.border, background: c.bg }}
+      className="group flex items-center gap-2 px-2.5 py-2 rounded-lg border cursor-grab
+                 active:cursor-grabbing hover:shadow-sm hover:-translate-y-px transition-all
+                 mb-1.5 select-none"
+    >
+      <MdDragIndicator size={14} className="text-gray-400 shrink-0 -ml-1" />
+      <span style={{ background: c.dot }} className="w-1.5 h-1.5 rounded-full shrink-0" />
+      <Icon size={14} color={c.text} />
+      <div className="flex-1 min-w-0">
+        <p style={{ color: c.text }} className="text-xs font-medium truncate leading-tight">
+          {field.label}
+        </p>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <span className="text-[9px] font-mono text-gray-500 truncate">{field.key}</span>
+          <span className="text-[9px] text-gray-400 capitalize">· {field.type}</span>
+        </div>
+      </div>
+      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5 shrink-0">
+        <button
+          onClick={(e) => { e.stopPropagation(); onInsert(field.key) }}
+          title="Cursor байрлалд оруулах"
+          className="w-5 h-5 flex items-center justify-center rounded
+                     bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer"
+        >
+          <MdAdd size={12} className="text-gray-600" />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onEdit() }}
+          title="Засах"
+          className="w-5 h-5 flex items-center justify-center rounded
+                     bg-white border border-gray-200 hover:bg-gray-50 cursor-pointer"
+        >
+          <MdEdit size={10} className="text-gray-600" />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete() }}
+          title="Устгах"
+          className="w-5 h-5 flex items-center justify-center rounded
+                     bg-white border border-red-200 hover:bg-red-50 cursor-pointer"
+        >
+          <MdClose size={10} className="text-red-500" />
+        </button>
       </div>
     </div>
   )

@@ -93,7 +93,7 @@ export default function DocumentPage() {
     })
   }, [contracts, search, statusFilter, dateFrom, dateTo, sideFilter])
 
-  const pageTitle = SIDEBAR_TITLES[sideFilter] || { title: 'Гэрээнүүд', subtitle: 'Таны бүх гэрээний жагсаалт' }
+  const pageTitle = SIDEBAR_TITLES[sideFilter] || { title: 'Бичиг баримт', subtitle: 'Таны бүх гэрээний жагсаалт' }
 
   // Статистик (хэвээр)
   const stats = useMemo(() => ({
@@ -173,11 +173,11 @@ export default function DocumentPage() {
           </div>
 
           {/* Баруун: illustrationBro */}
-          <div className="hidden lg:flex relative items-center justify-center
-                          bg-linear-to-br from-emerald-50 to-emerald-100/60
-                          border border-emerald-100 overflow-hidden">
-            {/* Decorative blob */}
-            <div className="absolute -right-6 -top-6 w-32 h-32 rounded-full bg-emerald-200/40 blur-2xl" />
+          <div className="hidden lg:flex relative items-center justify-center 
+                        overflow-hidden">
+            {/* Decorative blob  bg-linear-to-br from-emerald-50 to-emerald-100/60
+                          border border-emerald-100    */}
+            {/* <div className="absolute -right-6 -top-6 w-32 h-32 rounded-full bg-emerald-200/40 blur-2xl" /> */}
             <div className="absolute -left-6 -bottom-6 w-28 h-28 rounded-full bg-emerald-300/30 blur-xl" />
             <div className="relative w-full h-44">
               <Image

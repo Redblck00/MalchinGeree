@@ -220,15 +220,15 @@ export default function ProfilePage() {
             <p className="text-xs text-gray-400 max-w-xs m-0">
               өөрийн гарын үсгийг оруулна уу
             </p>
-            {signatureImg && (
-              <button
-                onClick={handleDeleteSignature}
-                className="text-xs text-red-400 hover:text-red-600 transition-colors w-fit
-                           cursor-pointer bg-transparent border-0 p-0 mt-1"
-              >
-                Устгах
-              </button>
-            )}
+            {/* {signatureImg && (
+              // <button
+              //   onClick={handleDeleteSignature}
+              //   className="text-xs text-red-400 hover:text-red-600 transition-colors w-fit
+              //              cursor-pointer bg-transparent border-0 p-0 mt-1"
+              // >
+              //   Устгах
+              // </button>
+            )} */}
           </div>
         </div>
 

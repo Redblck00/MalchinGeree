@@ -61,7 +61,7 @@ export default function CloseContractModal({ open, onClose, onConfirm, submittin
           </p>
 
           <label className="text-xs font-medium text-gray-700 mb-1.5 block">
-            Хаах шалтгаан <span className="text-gray-400 font-normal">(заавал биш)</span>
+            Хаах шалтгаан <span className="text-green-800 font-normal">(заавал биш)</span>
           </label>
           <textarea
             value={reason}
@@ -69,10 +69,10 @@ export default function CloseContractModal({ open, onClose, onConfirm, submittin
             rows={3}
             maxLength={300}
             placeholder="Жишээ нь: Хэлцэл амжилттай дууссан"
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm
+            className="w-full px-3 py-2.5 border text-green-800 border-gray-200 rounded-xl text-sm
                        outline-none focus:border-[#3d3a8c] bg-white resize-none"
           />
-          <p className="text-[11px] text-gray-400 text-right mt-1 m-0">
+          <p className="text-[11px] text-black text-right mt-1 m-0">
             {reason.length}/300
           </p>
         </div>

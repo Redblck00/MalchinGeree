@@ -88,7 +88,7 @@ export default function Navbar() {
                                : 'bg-linear-to-br from-emerald-400 to-emerald-700'
                            }`}>
             <Image
-              src="/home/systemIcon.png"
+              src="/systemIcon.png"
               alt="МалчныГэрээ"
               width={28}
               height={28}

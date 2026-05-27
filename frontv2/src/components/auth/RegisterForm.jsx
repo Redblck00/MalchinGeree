@@ -1,15 +1,15 @@
 "use client"
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
-import  useAuthStore  from '@/app/store/authStore'
+import useAuthStore from '@/app/store/authStore'
 import OtpVerify from '@/components/auth/OtpVerify'
 import Link from 'next/link'
-import {Button,Input} from '../ui/index'
+
 const requirements = [
-  { label: 'Багадаа 8 тэмдэгт оруулах', test: (p) => p.length >= 8 },
-  { label: 'Том үсэг ашиглах (A–Z)',     test: (p) => /[A-Z]/.test(p) },
-  { label: 'Жижиг үсэг ашиглах (a–z)',   test: (p) => /[a-z]/.test(p) },
-  { label: 'Тооны утга оруулах (1–9)',    test: (p) => /[0-9]/.test(p) },
+  { label: '8+ тэмдэгт',     test: (p) => p.length >= 8 },
+  { label: 'Том үсэг',       test: (p) => /[A-Z]/.test(p) },
+  { label: 'Жижиг үсэг',     test: (p) => /[a-z]/.test(p) },
+  { label: 'Тоо',            test: (p) => /[0-9]/.test(p) },
 ]
 
 export default function RegisterForm() {
@@ -20,17 +20,16 @@ export default function RegisterForm() {
 
   const [step, setStep] = useState('register')
   const [showPassword, setShowPassword] = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
+  const [showConfirm,  setShowConfirm]  = useState(false)
   const [confirmPassword, setConfirmPassword] = useState('')
   const [form, setForm] = useState({
     first_name: '',
     last_name:  '',
     phone:      '',
-    email:      inviteEmail,  // Урилгын линкээс ирсэн email-г pre-fill
+    email:      inviteEmail,
     password:   '',
   })
 
-  // URL-аар email өөрчлөгдвөл form-д шинэчлэх
   useEffect(() => {
     if (inviteEmail) setForm(f => ({ ...f, email: inviteEmail }))
   }, [inviteEmail])
@@ -40,22 +39,26 @@ export default function RegisterForm() {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
+  const metCount = useMemo(
+    () => requirements.filter(r => r.test(form.password)).length,
+    [form.password]
+  )
+  const allMet           = metCount === requirements.length
+  const passwordMismatch = confirmPassword.length > 0 && form.password !== confirmPassword
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (form.password !== confirmPassword) return
+    if (passwordMismatch || !allMet) return
     try {
-      // Backend: POST /api/auth/register
-      // { first_name, last_name, phone, email, password }
-      // Хариу: { message, phone }
       await register(form)
       setStep('otp')
     } catch (_) {}
   }
 
-  // OTP шат — register амжилттай болсны дараа
+  // ── OTP шат ───────────────────────────────────────────
   if (step === 'otp') {
     return (
-      <div className="bg-white rounded-2xl px-10 py-12 w-full max-w-110">
+      <div className="bg-gray-100 rounded-2xl px-10 py-12 w-full max-w-md">
         <OtpVerify
           phone={form.phone}
           email={form.email}
@@ -66,72 +69,68 @@ export default function RegisterForm() {
     )
   }
 
-  const passwordMismatch = confirmPassword.length > 0 && form.password !== confirmPassword
-
   return (
-    <div className="bg-white rounded-2xl px-10 py-12 w-full max-w-110">
-      <div className="mb-4 mt-2">
-        <p className="text-sm text-gray-500 m-0">Бүртгүүлэх мэдэллээ бөглөнө үү</p>
+    <div className="bg-gray-100 rounded-2xl px-10 py-10 w-full max-w-md">
+
+      {/* ── Title ───────────────────────────────────────── */}
+      <div className="text-center mb-7">
+        <h1 className="text-3xl font-light tracking-[0.12em] uppercase text-gray-900 mb-2 m-0">
+          Бүртгүүлэх
+        </h1>
+        <p className="text-sm text-gray-500 m-0">
+          Цахим гэрээний платформд нэгдэх
+        </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
 
-        {/* Овог */}
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium text-gray-700">Овог</label>
-          <Input
-            type="text"
+        {/* Овог + Нэр (2 багана) */}
+        <div className="grid grid-cols-2 gap-3">
+          <Field
+            label="Овог"
             name="last_name"
             value={form.last_name}
             onChange={handleChange}
             placeholder="Овог"
             required
-            // className="w-full px-3.5 py-2 border border-gray-200 rounded-[10px] text-sm outline-none box-border bg-gray-50 text-gray-900"
+            autoComplete="family-name"
           />
-        </div>
-
-        {/* Нэр */}
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium text-gray-700">Нэр</label>
-          <input
-            type="text"
+          <Field
+            label="Нэр"
             name="first_name"
             value={form.first_name}
             onChange={handleChange}
             placeholder="Нэр"
             required
-            className="w-full px-3.5 py-3 border border-gray-200 rounded-[10px] text-sm outline-none box-border bg-gray-50 text-gray-900"
+            autoComplete="given-name"
           />
         </div>
 
         {/* Утас */}
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium text-gray-700">Утас</label>
-          <input
-            type="tel"
-            name="phone"
-            value={form.phone}
-            onChange={handleChange}
-            placeholder="99112233"
-            maxLength={8}
-            required
-            className="w-full px-3.5 py-3 border border-gray-200 rounded-[10px] text-sm outline-none box-border bg-gray-50 text-gray-900"
-          />
-        </div>
+        <Field
+          label="Утас"
+          name="phone"
+          type="tel"
+          value={form.phone}
+          onChange={handleChange}
+          placeholder="99112233"
+          maxLength={8}
+          required
+          autoComplete="tel"
+        />
 
         {/* Имейл */}
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium text-gray-700">И-мэйл хаяг</label>
-          <input
-            type="email"
-            name="email"
-            value={form.email}
-            onChange={handleChange}
-            placeholder="example@mail.com"
-            required
-            className="w-full px-3.5 py-3 border border-gray-200 rounded-[10px] text-sm outline-none box-border bg-gray-50 text-gray-900"
-          />
-        </div>
+        <Field
+          label="И-мэйл хаяг"
+          name="email"
+          type="email"
+          value={form.email}
+          onChange={handleChange}
+          placeholder="example@mail.com"
+          required
+          autoComplete="email"
+          disabled={!!inviteEmail}
+        />
 
         {/* Нууц үг */}
         <div className="flex flex-col gap-2">
@@ -142,29 +141,55 @@ export default function RegisterForm() {
               name="password"
               value={form.password}
               onChange={handleChange}
-              placeholder="••••••••••"
+              placeholder="**********"
               required
-              className="w-full px-3.5 py-3 pr-13 border border-gray-200 rounded-[10px] text-sm outline-none box-border bg-gray-50 text-gray-900"
+              autoComplete="new-password"
+              className="w-full px-4 py-3 pr-12 bg-white border border-gray-200 rounded-full text-sm
+                         text-gray-900 placeholder:text-gray-400 outline-none box-border
+                         focus:border-gray-400 transition-colors"
             />
             <button
               type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 bg-transparent border-0 cursor-pointer text-base leading-none p-0"
+              onClick={() => setShowPassword(s => !s)}
+              tabIndex={-1}
+              className="absolute right-4 top-1/2 -translate-y-1/2 bg-transparent border-0
+                         cursor-pointer text-sm leading-none p-0 text-gray-400"
+              aria-label={showPassword ? 'Нуух' : 'Харах'}
             >
               {showPassword ? '🙈' : '👁'}
             </button>
           </div>
+
+          {/* Strength bar + requirements */}
           {form.password.length > 0 && (
-            <ul className="list-none mt-1 p-0 flex flex-col gap-0.75">
-              {requirements.map(({ label, test }) => (
-                <li
-                  key={label}
-                  className={`text-xs transition-colors ${test(form.password) ? 'text-green-500' : 'text-gray-400'}`}
-                >
-                  • {label}
-                </li>
-              ))}
-            </ul>
+            <div className="mt-1">
+              <div className="flex gap-1 mb-1.5">
+                {[0,1,2,3].map(i => (
+                  <span
+                    key={i}
+                    className={`h-1 flex-1 rounded-full transition-colors ${
+                      i < metCount
+                        ? metCount <= 2 ? 'bg-amber-400'
+                          : metCount === 3 ? 'bg-[#7166D9]'
+                          : 'bg-[#3d3a8c]'
+                        : 'bg-gray-200'
+                    }`}
+                  />
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-x-2.5 gap-y-0.5">
+                {requirements.map(({ label, test }) => {
+                  const ok = test(form.password)
+                  return (
+                    <span key={label}
+                      className={`text-[11px] transition-colors
+                                  ${ok ? 'text-[#3d3a8c]' : 'text-gray-400'}`}>
+                      {ok ? '✓' : '·'} {label}
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
           )}
         </div>
 
@@ -176,44 +201,74 @@ export default function RegisterForm() {
               type={showConfirm ? 'text' : 'password'}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="••••••••••"
+              placeholder="**********"
               required
-              className={`w-full px-3.5 py-3 pr-13 border rounded-[10px] text-sm outline-none box-border bg-gray-50 text-gray-900 ${passwordMismatch ? 'border-red-400' : 'border-gray-200'}`}
+              autoComplete="new-password"
+              className={`w-full px-4 py-3 pr-12 bg-white border rounded-full text-sm
+                          text-gray-900 placeholder:text-gray-400 outline-none box-border
+                          focus:border-gray-400 transition-colors
+                          ${passwordMismatch ? 'border-red-400' : 'border-gray-200'}`}
             />
-            <Button
+            <button
               type="button"
-              onClick={() => setShowConfirm(!showConfirm)}
-            //   className="absolute right-3.5 top-1/2 -translate-y-1/2 bg-transparent border-0 cursor-pointer text-base leading-none p-0"
+              onClick={() => setShowConfirm(s => !s)}
+              tabIndex={-1}
+              className="absolute right-4 top-1/2 -translate-y-1/2 bg-transparent border-0
+                         cursor-pointer text-sm leading-none p-0 text-gray-400"
+              aria-label={showConfirm ? 'Нуух' : 'Харах'}
             >
               {showConfirm ? '🙈' : '👁'}
-            </Button>
+            </button>
           </div>
           {passwordMismatch && (
-            <p className="text-red-400 text-xs mt-0.5 m-0">Нууц үг таарахгүй байна</p>
+            <p className="text-red-500 text-xs m-0">Нууц үг таарахгүй байна</p>
           )}
         </div>
 
         {/* Backend алдаа */}
         {authError && (
-          <p className="text-red-400 text-[13px] m-0">{authError}</p>
+          <p className="text-red-500 text-xs m-0">{authError}</p>
         )}
 
-        {/* Бүртгүүлэх товч */}
+        {/* Submit товч */}
         <button
           type="submit"
-          disabled={authLoading || passwordMismatch}
-          className="w-full py-3.25 bg-[#3d3a8c] disabled:bg-gray-400 text-white border-0 rounded-[10px] text-[15px] font-medium cursor-pointer disabled:cursor-not-allowed transition-colors"
+          disabled={authLoading || passwordMismatch || !allMet}
+          className="w-full py-3 bg-[#3d3a8c] hover:bg-[#2d2a6e]
+                     disabled:bg-gray-400 disabled:cursor-not-allowed
+                     text-white border-0 rounded-full text-[15px] font-medium
+                     cursor-pointer transition-colors mt-1"
         >
           {authLoading ? 'Бүртгэж байна...' : 'Бүртгүүлэх'}
         </button>
       </form>
 
-      <p className="text-center mt-6 text-sm text-gray-500">
+      {/* Footer */}
+      <p className="text-center mt-5 text-sm text-gray-500 m-0">
         Бүртгэлтэй юу?{' '}
         <Link href="/login" className="text-[#3d3a8c] no-underline font-semibold">
           Нэвтрэх
         </Link>
       </p>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════
+// Field — login-той ижил pill input
+// ══════════════════════════════════════════════════════
+function Field({ label, disabled, ...props }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="text-sm font-medium text-gray-700">{label}</label>
+      <input
+        {...props}
+        disabled={disabled}
+        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-full text-sm
+                   text-gray-900 placeholder:text-gray-400 outline-none box-border
+                   focus:border-gray-400 transition-colors
+                   disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed"
+      />
     </div>
   )
 }

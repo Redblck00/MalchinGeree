@@ -333,17 +333,27 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
                 )} */}
               </div>
 
-              {/* Footer action */}
-              <div className="relative pt-4 mt-4 border-t border-gray-100">
+              {/* Footer actions: Хаах + Ашиглах */}
+              <div className="relative pt-4 mt-4 border-t border-gray-100 flex gap-2">
                 <button
                   onClick={onClose}
-                  className="w-full py-3 px-4 text-sm font-semibold
+                  className="flex-1 py-3 px-4 text-sm font-semibold
                              text-gray-700 bg-white border border-gray-200
                              rounded-xl hover:bg-gray-50 hover:border-gray-300
                              transition-colors cursor-pointer"
                 >
                   Хаах
                 </button>
+                {onUse && (
+                  <button
+                    onClick={() => onUse(template)}
+                    className="flex-1 py-3 px-4 text-sm font-semibold
+                               text-white bg-[#3d3a8c] border-0 rounded-xl
+                               hover:bg-[#2d2a6e] cursor-pointer transition-colors"
+                  >
+                    Ашиглах
+                  </button>
+                )}
               </div>
             </div>
           </div>

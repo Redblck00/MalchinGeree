@@ -129,6 +129,16 @@ function FormField({ field, value, onChange, disabled }) {
       ) : field.type === 'number' ? (
         <input
           type="number"
+          step="1"
+          value={value || ''}
+          onChange={e => onChange(e.target.value)}
+          disabled={disabled}
+          className={inputCls}
+        />
+      ) : field.type === 'float' ? (
+        <input
+          type="number"
+          step="0.01"
           value={value || ''}
           onChange={e => onChange(e.target.value)}
           disabled={disabled}
@@ -436,6 +446,18 @@ export default function ContractForm({
     return false
   }
 
+  // Admin-ийн нэмсэн хувийн талбарууд (schema_json.fields-аас)
+  const customExtraFields = useMemo(() => {
+    if (!template?.schema_json?.fields) return []
+    return template.schema_json.fields
+      .filter(f => f.custom === true && f.key && !f.key.includes('.'))
+      .map(f => ({
+        key:   f.key,
+        label: f.label || f.key,
+        type:  f.type || 'text',
+      }))
+  }, [template])
+
   // Харагдах группүүдийг бэлдэх + per-group completion тооцох
   const visibleGroups = useMemo(() => {
     const result = []
@@ -486,8 +508,30 @@ export default function ContractForm({
         completion: { filled, total, complete: total > 0 && filled === total },
       })
     })
+
+    // ── Custom (хувийн) талбарууд — admin-ийн нэмсэн ──────
+    // template_content-д ашиглагдсан (usedKeys-д байгаа) хувийн талбаруудыг
+    // "Нэмэлт мэдээлэл" group болгож харуулна.
+    const usedCustom = customExtraFields.filter(f => usedKeys.has(f.key))
+    if (usedCustom.length > 0) {
+      let total = 0, filled = 0
+      usedCustom.forEach(f => {
+        total += 1
+        const v = getNestedValue(formData, f.key)
+        if (v !== '' && v != null) filled += 1
+      })
+      result.push({
+        id:    'custom-extras',
+        title: 'Нэмэлт мэдээлэл',
+        meta:  { icon: MdInfoOutline, subtitle: 'Энэхүү загварт нэмэгдсэн хувийн талбарууд' },
+        fields: usedCustom,
+        hasLivestock: false,
+        completion: { filled, total, complete: total > 0 && filled === total },
+      })
+    }
+
     return result
-  }, [usedKeys, formData, oppositeGroupName])
+  }, [usedKeys, formData, oppositeGroupName, customExtraFields])
 
   // Анхдагч active step
   useEffect(() => {

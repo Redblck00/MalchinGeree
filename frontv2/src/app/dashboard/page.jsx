@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import {
@@ -68,16 +68,6 @@ export default function DashboardPage() {
   const [data,    setData]    = useState(null)
   const [topUsers, setTopUsers] = useState([])
   const [loading, setLoading] = useState(true)
-  // ── Chart-ийн эхний хэмжээ -1 болохоос сэргийлэх mount flag ──
-  // Loading дуусаад, Card/wrapper layout-аа тооцсоны дараа (1 rAF тик)
-  // ResponsiveContainer-ийг mount хийнэ. Ингэснээр Recharts-ийн
-  // "width(-1) and height(-1)" warning арилна.
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => {
-    if (loading) { setMounted(false); return }
-    const id = requestAnimationFrame(() => setMounted(true))
-    return () => cancelAnimationFrame(id)
-  }, [loading])
 
   const fetchStats = async () => {
     setLoading(true)
@@ -209,10 +199,8 @@ export default function DashboardPage() {
             subtitle={`Нийт ${pieData.length} төрлийн мал`}
             className="lg:col-span-1"
           >
-            <div className="h-64 w-full">
-              {mounted && (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                <PieChart>
+            <ChartBox>
+              <PieChart>
                   <Pie
                     data={pieData}
                     dataKey="value"
@@ -232,10 +220,8 @@ export default function DashboardPage() {
                       name,
                     ]}
                   />
-                </PieChart>
-              </ResponsiveContainer>
-              )}
-            </div>
+              </PieChart>
+            </ChartBox>
 
             {/* Legend + insight */}
             <div className="flex flex-col gap-1.5 mt-3">
@@ -284,10 +270,8 @@ export default function DashboardPage() {
               </select>
             }
           >
-            <div className="h-64 w-full">
-              {mounted && (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                <BarChart data={barData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <ChartBox>
+              <BarChart data={barData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="barGreen" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%"   stopColor="#22c55e" stopOpacity={0.95} />
@@ -304,10 +288,8 @@ export default function DashboardPage() {
                     contentStyle={{ borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 12 }}
                   />
                   <Bar dataKey="count" fill="url(#barGreen)" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-              )}
-            </div>
+              </BarChart>
+            </ChartBox>
             {topPeriod && (
               <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-600">
                 Хамгийн идэвхтэй период:{' '}
@@ -329,10 +311,8 @@ export default function DashboardPage() {
                 Үнийн өгөгдөл хангалтгүй
               </div>
             ) : (
-              <div className="h-64 w-full">
-                {mounted && (
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                  <LineChart data={lineData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+              <ChartBox>
+                <LineChart data={lineData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
                     <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#6b7280' }} />
                     <YAxis
@@ -356,10 +336,8 @@ export default function DashboardPage() {
                         connectNulls
                       />
                     ))}
-                  </LineChart>
-                </ResponsiveContainer>
-                )}
-              </div>
+                </LineChart>
+              </ChartBox>
             )}
           </Card>
 
@@ -459,6 +437,32 @@ export default function DashboardPage() {
 // ══════════════════════════════════════════════════════
 // SUBCOMPONENTS
 // ══════════════════════════════════════════════════════
+
+// ResizeObserver-оор parent-ийн хэмжээг хэмжсэний дараа л Recharts-ыг
+// mount хийнэ. Ингэснээр "width(-1) and height(-1)" warning гарахгүй.
+function ChartBox({ children, className = 'h-64 w-full' }) {
+  const ref = useRef(null)
+  const [ready, setReady] = useState(false)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect
+      if (width > 0 && height > 0) setReady(true)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  return (
+    <div ref={ref} className={className}>
+      {ready && (
+        <ResponsiveContainer width="100%" height="100%">
+          {children}
+        </ResponsiveContainer>
+      )}
+    </div>
+  )
+}
 
 // KPI Card — linear ногоон gradient + цагаан текст
 function KpiCard({ label, value, unit, icon }) {

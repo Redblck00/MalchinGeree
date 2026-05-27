@@ -146,9 +146,9 @@ export default function Sidebar() {
 
       {/* МалчныГэрээ logo */}
       <div className="px-2 text-center mb-4">
-        <h1 className="text-2xl font-bold text-[#006B35] m-0 tracking-tight">
+        <Link href="/" className="text-2xl font-bold text-[#006B35] m-0 tracking-tight">
           МалчныГэрээ
-        </h1>
+        </Link>
       </div>
 
       {/* Sheep icon hero */}
