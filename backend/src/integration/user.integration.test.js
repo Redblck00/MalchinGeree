@@ -15,7 +15,8 @@ jest.mock('../middlewares/auth.middleware', () => (...args) => mockAuth(...args)
 
 jest.mock('../utils/upload', () => ({
   profileUpload: { single: () => (req, res, next) => next() },
-  signatureUpload: { single: () => (req, res, next) => next() },
+  handleUploadError: (err, req, res, next) => next(err),
+  deleteFile: () => {},
 }))
 
 const userRoutes = require('../routes/user.routes')

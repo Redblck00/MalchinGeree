@@ -2,6 +2,9 @@ const express = require('express')
 const router  = express.Router()
 const auth    = require('../middlewares/auth.middleware')
 const c       = require('../controllers/contract.controller')
+const att     = require('../controllers/contractAttachment.controller')
+const tmpl    = require('../controllers/contractTemplate.controller')
+const rating  = require('../controllers/contractRating.controller')
 const { attachmentUpload, handleUploadError } = require('../utils/upload')
 const { signOtpLimiter } = require('../middlewares/rateLimit.middleware')
 
@@ -25,11 +28,11 @@ router.use(auth)
 
 // GET /api/contracts/templates
 // → is_active=true template-уудын жагсаалт (schema_json-тай, content-гүй)
-router.get('/templates',            c.getTemplates)
+router.get('/templates',            tmpl.getTemplates)
 
 // GET /api/contracts/templates/:id
 // → Нэг template-ийн schema_json (форм үүсгэхэд хэрэгтэй)
-router.get('/templates/:id',        c.getTemplateById)
+router.get('/templates/:id',        tmpl.getTemplateById)
 
 // ══════════════════════════════════════════════════════
 // ГЭРЭЭ ҮҮСГЭХ
@@ -160,11 +163,11 @@ router.post('/:id/close',           c.closeContract)
 // POST /api/contracts/:id/ratings
 // Body: { rated_user_id, rating, comment? }
 // → UPSERT (дахин засаж болно)
-router.post('/:id/ratings',         c.submitRating)
+router.post('/:id/ratings',         rating.submitRating)
 
 // GET /api/contracts/:id/ratings
 // → Энэ гэрээний бүх үнэлгээ
-router.get('/:id/ratings',          c.getContractRatings)
+router.get('/:id/ratings',          rating.getContractRatings)
 
 // ══════════════════════════════════════════════════════
 // ХАВСРАЛТ — Cloudinary дээр upload
@@ -176,11 +179,11 @@ router.post(
   '/:id/attachments',
   attachmentUpload.single('file'),
   handleUploadError,
-  c.uploadAttachment
+  att.uploadAttachment
 )
 
 // DELETE /api/contracts/:id/attachments/:attachmentId
 // Зөвхөн uploaded_by өөрөө
-router.delete('/:id/attachments/:attachmentId', c.deleteAttachment)
+router.delete('/:id/attachments/:attachmentId', att.deleteAttachment)
 
 module.exports = router

@@ -29,11 +29,13 @@ const sendOtpEmail = async (email, code) => {
 }
 
 // Гэрээний урилга илгээх — contract.controller /send route
-const sendInviteEmail = async ({ to, contractTitle, inviteUrl, senderName }) => {
+const sendInviteEmail = async ({ to, contractTitle, inviteUrl, senderName, customSubject }) => {
+  const subject = (customSubject || '').trim()
+    || `${senderName} таныг гэрээнд урьж байна`
   await transporter.sendMail({
     from:    `"Цахим Гэрээ" <${process.env.EMAIL_USER}>`,
     to,
-    subject: `${senderName} таныг гэрээнд урьж байна`,
+    subject,
     html: `
       <div style="font-family:sans-serif;max-width:500px;margin:auto;padding:24px">
         <h2 style="color:#1e1b4b">Гэрээний урилга</h2>

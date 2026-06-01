@@ -21,4 +21,17 @@ const deleteFromCloudinary = async (publicId, resourceType = 'image') => {
   }
 }
 
-module.exports = { cloudinary, deleteFromCloudinary }
+// Cloudinary secure URL → public_id (folder/name, extension-гүй)
+const publicIdFromUrl = (url) => {
+  if (!url || typeof url !== 'string' || !url.includes('cloudinary.com')) return null
+  const marker = '/upload/'
+  const idx = url.indexOf(marker)
+  if (idx === -1) return null
+  let rest = url.slice(idx + marker.length).split('?')[0]
+  rest = rest.replace(/^v\d+\//, '')
+  const lastDot = rest.lastIndexOf('.')
+  if (lastDot > rest.lastIndexOf('/')) rest = rest.slice(0, lastDot)
+  return rest || null
+}
+
+module.exports = { cloudinary, deleteFromCloudinary, publicIdFromUrl }

@@ -1,7 +1,19 @@
 const mockQuery = jest.fn()
+const mockDeleteFromCloudinary = jest.fn()
+const mockPublicIdFromUrl = jest.fn()
+const mockDeleteFile = jest.fn()
 
 jest.mock('../../config/db', () => ({
   query: (...args) => mockQuery(...args),
+}))
+
+jest.mock('../../utils/cloudinary', () => ({
+  deleteFromCloudinary: (...args) => mockDeleteFromCloudinary(...args),
+  publicIdFromUrl: (...args) => mockPublicIdFromUrl(...args),
+}))
+
+jest.mock('../../utils/upload', () => ({
+  deleteFile: (...args) => mockDeleteFile(...args),
 }))
 
 const userController = require('../user.controller')
@@ -46,6 +58,29 @@ describe('user.controller unit tests', () => {
     expect(res.status).toHaveBeenCalledWith(400)
     expect(res.json).toHaveBeenCalledWith({ message: 'Утасны дугаар шаардлагатай' })
     expect(mockQuery).not.toHaveBeenCalled()
+  })
+
+  it('uploadProfileImage stores Cloudinary URL and deletes old cloud asset', async () => {
+    const cloudUrl = 'https://res.cloudinary.com/demo/image/upload/v1/econtract/profiles/p.jpg'
+    const req = {
+      user: { user_id: 'u-1' },
+      file: { path: cloudUrl, filename: 'econtract/profiles/p' },
+    }
+    const res = createRes()
+
+    mockQuery
+      .mockResolvedValueOnce({
+        rows: [{ profile_image_url: 'https://res.cloudinary.com/demo/old.jpg' }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+    mockPublicIdFromUrl.mockReturnValueOnce('econtract/profiles/old')
+    mockDeleteFromCloudinary.mockResolvedValueOnce(undefined)
+
+    await userController.uploadProfileImage(req, res)
+
+    expect(mockQuery).toHaveBeenCalledTimes(2)
+    expect(mockDeleteFromCloudinary).toHaveBeenCalledWith('econtract/profiles/old', 'image')
+    expect(res.json).toHaveBeenCalledWith({ data: { profile_image_url: cloudUrl } })
   })
 
   it('saveSignature returns 400 when signature_blob is missing', async () => {

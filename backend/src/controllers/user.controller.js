@@ -1,18 +1,13 @@
-﻿const { query } = require('../config/db')
+const repo = require('../repositories/user.repository')
 const { safeErrorMessage } = require('../utils/errors')
 const { deleteFile } = require('../utils/upload')
+const { deleteFromCloudinary, publicIdFromUrl } = require('../utils/cloudinary')
 
 // ── GET /api/users/profile ────────────────────────────
 const getProfile = async (req, res) => {
   try {
-    const result = await query(
-      `SELECT user_id, first_name, last_name, email, phone,
-              address, profile_image_url, user_type, status,
-              created_at, last_login_at
-       FROM users WHERE user_id = $1`,
-      [req.user.user_id]
-    )
-    res.json({ data: result.rows[0] })
+    const profile = await repo.findUserProfile(req.user.user_id)
+    res.json({ data: profile })
   } catch (err) {
     res.status(400).json({ message: safeErrorMessage(err) })
   }
@@ -25,25 +20,14 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const { first_name, last_name, address, phone } = req.body
-    const result = await query(
-      `UPDATE users
-       SET first_name  = COALESCE($1, first_name),
-           last_name   = COALESCE($2, last_name),
-           address     = COALESCE($3, address),
-           phone       = COALESCE($4, phone),
-           updated_at  = NOW()
-       WHERE user_id = $5
-       RETURNING user_id, first_name, last_name, email, phone,
-                 address, profile_image_url, user_type`,
-      [
-        first_name?.trim() || null,
-        last_name?.trim()  || null,
-        address?.trim()    || null,
-        phone?.trim()      || null,
-        req.user.user_id,
-      ]
-    )
-    res.json({ data: result.rows[0] })
+    const updated = await repo.updateUserProfile({
+      userId:    req.user.user_id,
+      firstName: first_name?.trim() || null,
+      lastName:  last_name?.trim()  || null,
+      address:   address?.trim()    || null,
+      phone:     phone?.trim()      || null,
+    })
+    res.json({ data: updated })
   } catch (err) {
     if (err.code === '23505') {  // unique violation
       return res.status(409).json({ message: 'Уг утасны дугаар аль хэдийн бүртгэгдсэн' })
@@ -61,39 +45,22 @@ const getRatings = async (req, res) => {
     // user_rating_summary materialized view-ээс дундаж + тоо
     let summary = { rating_avg: 0, rating_count: 0 }
     try {
-      const sumRes = await query(
-        `SELECT rating_avg, rating_count
-         FROM user_rating_summary
-         WHERE user_id = $1`,
-        [userId]
-      )
-      if (sumRes.rows[0]) {
+      const sumRow = await repo.findUserRatingSummary(userId)
+      if (sumRow) {
         summary = {
-          rating_avg:   Number(sumRes.rows[0].rating_avg)   || 0,
-          rating_count: Number(sumRes.rows[0].rating_count) || 0,
+          rating_avg:   Number(sumRow.rating_avg)   || 0,
+          rating_count: Number(sumRow.rating_count) || 0,
         }
       }
     } catch (_) { /* view байхгүй бол default */ }
 
     // Сүүлийн 5 сэтгэгдэл
-    const recentRes = await query(
-      `SELECT ur.rating_id, ur.rating, ur.comment, ur.created_at,
-              ur.contract_id, c.contract_number,
-              u.first_name AS rater_first_name,
-              u.last_name  AS rater_last_name
-       FROM user_ratings ur
-       LEFT JOIN users u     ON u.user_id     = ur.rater_id
-       LEFT JOIN contracts c ON c.contract_id = ur.contract_id
-       WHERE ur.rated_user_id = $1
-       ORDER BY ur.created_at DESC
-       LIMIT 5`,
-      [userId]
-    )
+    const recent = await repo.findRecentRatingsForUser(userId)
 
     res.json({
       data: {
         summary,
-        recent: recentRes.rows,
+        recent,
       },
     })
   } catch (err) {
@@ -106,11 +73,7 @@ const getRatings = async (req, res) => {
 const deleteAccount = async (req, res) => {
   try {
     // Soft delete — status = DELETED
-    await query(
-      `UPDATE users SET status = 'DELETED', updated_at = NOW()
-       WHERE user_id = $1`,
-      [req.user.user_id]
-    )
+    await repo.softDeleteUser(req.user.user_id)
     res.json({ message: 'Бүртгэл устгагдлаа' })
   } catch (err) {
     res.status(400).json({ message: safeErrorMessage(err) })
@@ -118,30 +81,43 @@ const deleteAccount = async (req, res) => {
 }
 
 // ── POST /api/users/profile/image ─────────────────────
+// multer-cloudinary → req.file.path (secure URL), req.file.filename (public_id)
 const uploadProfileImage = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'Зураг оруулна уу' })
 
-    // Хуучин зургийг авч, амжилттай UPDATE-ийн дараа диск дээрээс устгана.
-    // Disk leak-ээс сэргийлэх (ижил хэрэглэгч олон удаа зураг солих үед).
-    const oldRes = await query(
-      `SELECT profile_image_url FROM users WHERE user_id = $1`,
-      [req.user.user_id]
-    )
-    const oldUrl = oldRes.rows[0]?.profile_image_url || null
+    const oldRow = await repo.findProfileImageUrl(req.user.user_id)
+    const oldUrl = oldRow?.profile_image_url || null
+    const url    = req.file.path
 
-    const url = `uploads/profiles/${req.file.filename}`
-    await query(
-      `UPDATE users SET profile_image_url = $1, updated_at = NOW()
-       WHERE user_id = $2`,
-      [url, req.user.user_id]
-    )
+    await repo.updateProfileImageUrl(req.user.user_id, url)
 
-    // UPDATE амжилттай үед хуучин файлыг устгах. deleteFile нь дотроо
-    // try/catch-тай тул main flow-д нөлөөлөхгүй.
-    if (oldUrl && oldUrl !== url) deleteFile(oldUrl)
+    if (oldUrl && oldUrl !== url) {
+      const oldPublicId = publicIdFromUrl(oldUrl)
+      if (oldPublicId) {
+        await deleteFromCloudinary(oldPublicId, 'image')
+      } else if (!/^https?:\/\//i.test(oldUrl)) {
+        deleteFile(oldUrl)
+      }
+    }
 
     res.json({ data: { profile_image_url: url } })
+  } catch (err) {
+    if (req.file?.filename) {
+      await deleteFromCloudinary(req.file.filename, 'image')
+    }
+    res.status(400).json({ message: safeErrorMessage(err) })
+  }
+}
+
+// ── GET /api/users/past-counterparties?q=... ─────────
+// "Талыг нэмэх" modal-ын хайх таб — өмнө гэрээ байгуулсан хүмүүсээс хайна.
+// q байхгүй бол сүүлд гэрээ хийсэн дарааллаар тэргүүлэгчид буцна.
+const getPastCounterparties = async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim() || null
+    const rows = await repo.findPastCounterparties(req.user.user_id, q)
+    res.json({ data: rows })
   } catch (err) {
     res.status(400).json({ message: safeErrorMessage(err) })
   }
@@ -154,17 +130,9 @@ const searchByPhone = async (req, res) => {
     const { phone } = req.query
     if (!phone) return res.status(400).json({ message: 'Утасны дугаар шаардлагатай' })
 
-    const result = await query(
-      `SELECT user_id, first_name, last_name, phone, email,
-              profile_image_url, user_type
-       FROM users
-       WHERE phone = $1
-         AND status = 'ACTIVE'
-         AND user_id <> $2`,
-      [phone, req.user.user_id]
-    )
-    if (!result.rows[0]) return res.status(404).json({ message: 'Хэрэглэгч олдсонгүй' })
-    res.json({ data: result.rows[0] })
+    const user = await repo.findUserByPhone(phone, req.user.user_id)
+    if (!user) return res.status(404).json({ message: 'Хэрэглэгч олдсонгүй' })
+    res.json({ data: user })
   } catch (err) {
     res.status(400).json({ message: safeErrorMessage(err) })
   }
@@ -174,15 +142,8 @@ const searchByPhone = async (req, res) => {
 // user_signatures — хэрэглэгчийн хадгалсан гарын үсгийн загварууд
 const getSignatures = async (req, res) => {
   try {
-    const result = await query(
-      `SELECT user_signature_id, signature_type, is_default,
-              created_at, signature_blob
-       FROM user_signatures
-       WHERE user_id = $1
-       ORDER BY is_default DESC, created_at DESC`,
-      [req.user.user_id]
-    )
-    res.json({ data: result.rows })
+    const rows = await repo.findUserSignatures(req.user.user_id)
+    res.json({ data: rows })
   } catch (err) {
     res.status(400).json({ message: safeErrorMessage(err) })
   }
@@ -198,19 +159,16 @@ const saveSignature = async (req, res) => {
     // is_default = true бол өмнөхийг хасах
     // DB дээр UNIQUE INDEX байгаа: uq_user_default_signature
     if (is_default) {
-      await query(
-        `UPDATE user_signatures SET is_default = false WHERE user_id = $1`,
-        [req.user.user_id]
-      )
+      await repo.clearDefaultSignature(req.user.user_id)
     }
 
-    const result = await query(
-      `INSERT INTO user_signatures (user_id, signature_blob, signature_type, is_default)
-       VALUES ($1,$2,$3,$4)
-       RETURNING user_signature_id, signature_type, is_default, created_at`,
-      [req.user.user_id, signature_blob, signature_type, is_default]
-    )
-    res.status(201).json({ data: result.rows[0] })
+    const signature = await repo.insertSignature({
+      userId:        req.user.user_id,
+      blob:          signature_blob,
+      signatureType: signature_type,
+      isDefault:     is_default,
+    })
+    res.status(201).json({ data: signature })
   } catch (err) {
     res.status(400).json({ message: safeErrorMessage(err) })
   }
@@ -220,20 +178,11 @@ const saveSignature = async (req, res) => {
 const setDefaultSignature = async (req, res) => {
   try {
     // Өмнөх default хасах
-    await query(
-      `UPDATE user_signatures SET is_default = false WHERE user_id = $1`,
-      [req.user.user_id]
-    )
+    await repo.clearDefaultSignature(req.user.user_id)
     // Шинэ default тохируулах
-    const result = await query(
-      `UPDATE user_signatures     
-       SET is_default = true
-       WHERE user_signature_id = $1 AND user_id = $2
-       RETURNING user_signature_id, is_default`,
-      [req.params.id, req.user.user_id]
-    )
-    if (!result.rows[0]) return res.status(404).json({ message: 'Гарын үсэг олдсонгүй' })
-    res.json({ data: result.rows[0] })
+    const signature = await repo.setSignatureAsDefault(req.params.id, req.user.user_id)
+    if (!signature) return res.status(404).json({ message: 'Гарын үсэг олдсонгүй' })
+    res.json({ data: signature })
   } catch (err) {
     res.status(400).json({ message: safeErrorMessage(err) })
   }
@@ -242,13 +191,8 @@ const setDefaultSignature = async (req, res) => {
 // ── DELETE /api/users/signatures/:id ─────────────────
 const deleteSignature = async (req, res) => {
   try {
-    const result = await query(
-      `DELETE FROM user_signatures
-       WHERE user_signature_id = $1 AND user_id = $2
-       RETURNING user_signature_id`,
-      [req.params.id, req.user.user_id]
-    )
-    if (!result.rows[0]) return res.status(404).json({ message: 'Гарын үсэг олдсонгүй' })
+    const deleted = await repo.deleteUserSignature(req.params.id, req.user.user_id)
+    if (!deleted) return res.status(404).json({ message: 'Гарын үсэг олдсонгүй' })
     res.json({ message: 'Гарын үсэг устгагдлаа' })
   } catch (err) {
     res.status(400).json({ message: safeErrorMessage(err) })
@@ -258,17 +202,9 @@ const deleteSignature = async (req, res) => {
 // ── GET /api/users/notifications ──────────────────────
 const getNotifications = async (req, res) => {
   try {
-    const result = await query(
-      `SELECT notification_id, title, message, is_read,
-              contract_id, channel, created_at
-       FROM notifications
-       WHERE user_id = $1
-       ORDER BY created_at DESC
-       LIMIT 50`,
-      [req.user.user_id]
-    )
-    const unread = result.rows.filter(n => !n.is_read).length
-    res.json({ data: result.rows, unread })
+    const rows = await repo.findUserNotifications(req.user.user_id)
+    const unread = rows.filter(n => !n.is_read).length
+    res.json({ data: rows, unread })
   } catch (err) {
     res.status(400).json({ message: safeErrorMessage(err) })
   }
@@ -277,11 +213,7 @@ const getNotifications = async (req, res) => {
 // ── PATCH /api/users/notifications/:id/read ──────────
 const markNotificationRead = async (req, res) => {
   try {
-    await query(
-      `UPDATE notifications SET is_read = true
-       WHERE notification_id = $1 AND user_id = $2`,
-      [req.params.id, req.user.user_id]
-    )
+    await repo.markNotificationRead(req.params.id, req.user.user_id)
     res.json({ message: 'Уншсан гэж тэмдэглэгдлээ' })
   } catch (err) {
     res.status(400).json({ message: safeErrorMessage(err) })
@@ -291,11 +223,7 @@ const markNotificationRead = async (req, res) => {
 // ── PATCH /api/users/notifications/read-all ──────────
 const markAllNotificationsRead = async (req, res) => {
   try {
-    await query(
-      `UPDATE notifications SET is_read = true
-       WHERE user_id = $1 AND is_read = false`,
-      [req.user.user_id]
-    )
+    await repo.markAllNotificationsRead(req.user.user_id)
     res.json({ message: 'Бүгд уншсан гэж тэмдэглэгдлээ' })
   } catch (err) {
     res.status(400).json({ message: safeErrorMessage(err) })
@@ -321,96 +249,34 @@ const getLivestockStats = async (req, res) => {
     // 1. KPI хураангуй
     //    per_contract CTE: нэг гэрээний нийт дүнгээр групплэх → дундаж/хамгийн өндөр
     //    "гэрээний үнэ" гарна (нэг гэрээнд олон төрлийн мал орсон ч зөв тоологдоно).
-    const totalRes = await query(
-      `WITH per_contract AS (
-         SELECT contract_id,
-                SUM(total_amount) AS contract_amount,
-                SUM(count)        AS contract_count,
-                COUNT(*)          AS contract_items
-         FROM livestock_transactions
-         WHERE ${userField} = $1
-         GROUP BY contract_id
-       )
-       SELECT
-         COALESCE(SUM(contract_count), 0)::INT     AS total_count,
-         COALESCE(SUM(contract_amount), 0)::FLOAT  AS total_amount,
-         COUNT(*)::INT                             AS contracts_count,
-         COALESCE(SUM(contract_items), 0)::INT     AS items_count,
-         COALESCE(AVG(contract_amount), 0)::FLOAT  AS avg_contract_amount,
-         COALESCE(MAX(contract_amount), 0)::FLOAT  AS max_contract_amount
-       FROM per_contract`,
-      [userId]
-    )
+    const total = await repo.findLivestockKpi({ userField, userId })
 
     // 2. Малын төрлөөр (Pie chart) — count + amount + дундаж нэгж үнэ
     //    AVG нь NULL утгуудыг автоматаар алгасдаг тул price_per_unit IS NULL мөрүүд
     //    avg_price тооцоонд орохгүй (харин count/amount-д орно).
-    const byTypeRes = await query(
-      `SELECT livestock_type,
-              SUM(count)::INT            AS count,
-              SUM(total_amount)::FLOAT   AS amount,
-              AVG(price_per_unit)::FLOAT AS avg_price
-       FROM livestock_transactions
-       WHERE ${userField} = $1
-       GROUP BY livestock_type
-       ORDER BY count DESC`,
-      [userId]
-    )
+    const byType = await repo.findLivestockByType({ userField, userId })
 
     // 3. Сар/улирал/жилээр (Bar chart + KPI "хамгийн идэвхтэй сар")
     //    ASC дараалал — frontend timeline зурахад шууд таарна.
-    const byPeriodRes = await query(
-      `SELECT DATE_TRUNC($2, transaction_date) AS period,
-              SUM(count)::INT                  AS count,
-              SUM(total_amount)::FLOAT         AS amount
-       FROM livestock_transactions
-       WHERE ${userField} = $1
-       GROUP BY period
-       ORDER BY period ASC
-       LIMIT 24`,
-      [userId, period]
-    )
+    const byPeriod = await repo.findLivestockByPeriod({ userField, userId, period })
 
     // 4. Үнийн өсөлт (Line chart) — period × livestock_type × дундаж нэгж үнэ
     //    Малын төрөл бүрд line нэг → frontend дээр livestock_type-аар бүлэглэнэ.
     //    price_per_unit IS NULL мөрүүдийг шүүж хаасан — null line гаргахгүй.
-    const priceTrendRes = await query(
-      `SELECT DATE_TRUNC($2, transaction_date) AS period,
-              livestock_type,
-              AVG(price_per_unit)::FLOAT       AS avg_price,
-              SUM(count)::INT                  AS count
-       FROM livestock_transactions
-       WHERE ${userField} = $1
-         AND price_per_unit IS NOT NULL
-       GROUP BY period, livestock_type
-       ORDER BY period ASC, livestock_type ASC`,
-      [userId, period]
-    )
+    const priceTrend = await repo.findLivestockPriceTrend({ userField, userId, period })
 
     // 5. Сүүлийн 10 гүйлгээ
-    const recentRes = await query(
-      `SELECT lt.transaction_id, lt.livestock_type, lt.count,
-              lt.price_per_unit, lt.total_amount, lt.transaction_date,
-              lt.contract_id, c.contract_number, c.title,
-              u.first_name AS other_first_name, u.last_name AS other_last_name
-       FROM livestock_transactions lt
-       LEFT JOIN users u ON u.user_id = lt.${otherField}
-       LEFT JOIN contracts c ON c.contract_id = lt.contract_id
-       WHERE lt.${userField} = $1
-       ORDER BY lt.transaction_date DESC
-       LIMIT 10`,
-      [userId]
-    )
+    const recent = await repo.findRecentLivestock({ userField, otherField, userId })
 
     res.json({
       data: {
         role,
         period,
-        total:       totalRes.rows[0],
-        by_type:     byTypeRes.rows,
-        by_period:   byPeriodRes.rows,
-        price_trend: priceTrendRes.rows,
-        recent:      recentRes.rows,
+        total,
+        by_type:     byType,
+        by_period:   byPeriod,
+        price_trend: priceTrend,
+        recent,
       },
     })
   } catch (err) {
@@ -428,18 +294,8 @@ const getLivestockStats = async (req, res) => {
 const getTopRatedUsers = async (req, res) => {
   try {
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 5, 1), 20)
-    const result = await query(
-      `SELECT u.user_id, u.first_name, u.last_name,
-              u.profile_image_url, u.user_type,
-              s.rating_avg, s.rating_count
-       FROM user_rating_summary s
-       JOIN users u ON u.user_id = s.user_id
-       WHERE u.status = 'ACTIVE'
-       ORDER BY s.rating_avg DESC, s.rating_count DESC, u.first_name ASC
-       LIMIT $1`,
-      [limit]
-    )
-    res.json({ data: result.rows })
+    const rows = await repo.findTopRatedUsers(limit)
+    res.json({ data: rows })
   } catch (err) {
     console.error('getTopRatedUsers:', err)
     res.status(400).json({ message: safeErrorMessage(err) })
@@ -449,7 +305,7 @@ const getTopRatedUsers = async (req, res) => {
 module.exports = {
   getProfile, updateProfile, deleteAccount, uploadProfileImage,
   getRatings,
-  searchByPhone,
+  searchByPhone, getPastCounterparties,
   getSignatures, saveSignature, setDefaultSignature, deleteSignature,
   getNotifications, markNotificationRead, markAllNotificationsRead,
   getLivestockStats,

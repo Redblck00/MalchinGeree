@@ -2,7 +2,7 @@ const express = require('express')
 const router  = express.Router()
 const auth    = require('../middlewares/auth.middleware')
 const user    = require('../controllers/user.controller')
-const { profileUpload, signatureUpload } = require('../utils/upload')
+const { profileUpload, handleUploadError } = require('../utils/upload')
 
 router.use(auth)
 
@@ -10,7 +10,12 @@ router.use(auth)
 router.get('/profile',                                    user.getProfile)
 router.patch('/profile',                                  user.updateProfile)
 router.delete('/profile',                                 user.deleteAccount)
-router.post('/profile/image', profileUpload.single('image'), user.uploadProfileImage)
+router.post(
+  '/profile/image',
+  profileUpload.single('image'),
+  handleUploadError,
+  user.uploadProfileImage
+)
 
 // ── ҮНЭЛГЭЭ ───────────────────────────────────────────
 // GET /api/users/ratings → { summary: { rating_avg, rating_count }, recent: [...] }
@@ -19,6 +24,10 @@ router.get('/ratings',                                    user.getRatings)
 // ── ХЭРЭГЛЭГЧ ХАЙХ ───────────────────────────────────
 // GET /api/users/search?phone=99112233
 router.get('/search',                                     user.searchByPhone)
+
+// GET /api/users/past-counterparties?q=...
+// "Талыг нэмэх" modal — өмнө гэрээ байгуулсан хүмүүсийн жагсаалт
+router.get('/past-counterparties',                        user.getPastCounterparties)
 
 // ── ГАРЫН ҮСЭГ ────────────────────────────────────────
 // user_signatures хүснэгт — хэрэглэгчийн хадгалсан гарын үсгийн загвар

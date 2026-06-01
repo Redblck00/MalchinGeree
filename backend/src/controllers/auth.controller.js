@@ -1,5 +1,5 @@
-﻿const bcrypt    = require('bcryptjs')
-const { query } = require('../config/db')
+const bcrypt    = require('bcryptjs')
+const repo      = require('../repositories/auth.repository')
 const { signToken }                                   = require('../utils/jwt')
 const { generateOtp, saveOtp, verifyOtp,
         findPendingByPhone }                          = require('../utils/otp')
@@ -14,16 +14,13 @@ const register = async (req, res) => {
     if (!first_name || !last_name || !phone || !email || !password) {
       return res.status(400).json({ message: 'Бүх талбарыг бөглөнө үү' })
     }
-   
+
     if (typeof password !== 'string' || password.length < 6 || password.lngth > 72) {
       return res.status(400).json({ message: 'Нууц үг 6-72 тэмдэгттэй байх ёстой' })
     }
 
-    const existing = await query(
-      `SELECT user_id FROM users WHERE email = $1 OR phone = $2`,
-      [email.toLowerCase(), phone]
-    )
-    if (existing.rows.length > 0) {
+    const existing = await repo.findUserByEmailOrPhone(email.toLowerCase(), phone)
+    if (existing.length > 0) {
       return res.status(400).json({ message: 'Энэ имейл эсвэл утас аль хэдийн бүртгэлтэй' })
     }
 
@@ -47,19 +44,15 @@ const register = async (req, res) => {
   }
 }
 
-// ── POST /api/auth/verify-otp 
+// ── POST /api/auth/verify-otp
 const verifyOtpHandler = async (req, res) => {
   try {
     const { phone, code } = req.body
     if (!phone || !code) {
       return res.status(400).json({ message: 'Утас болон OTP код шаардлагатай' })
     }
-    const existingUser = await query(
-      `SELECT user_id, email, first_name, last_name, phone, user_type, status
-       FROM users WHERE phone = $1`,
-      [phone]
-    )
-    if (existingUser.rows[0]?.status === 'ACTIVE') {
+    const existingUser = await repo.findUserByPhoneForOtp(phone)
+    if (existingUser?.status === 'ACTIVE') {
       return res.status(400).json({ message: 'Бүртгэл аль хэдийн баталгаажсан байна' })
     }
 
@@ -83,28 +76,18 @@ const verifyOtpHandler = async (req, res) => {
     // OTP зөв — users хүснэгтэд хэрэглэгч үүсгэх
     const { first_name, last_name, email, password_hash } = result.pendingData
 
-    const userRes = await query(
-      `INSERT INTO users
-         (first_name, last_name, phone, email, password_hash, status, email_verified_at)
-       VALUES ($1, $2, $3, $4, $5, 'ACTIVE', NOW())
-       RETURNING user_id, first_name, last_name, phone, email, user_type, status`,
-      [first_name, last_name, phone, email, password_hash]
-    )
-    const user = userRes.rows[0]
+    const user = await repo.insertUser({
+      firstName:    first_name,
+      lastName:     last_name,
+      phone,
+      email,
+      passwordHash: password_hash,
+    })
 
     // ── Урилгатай гэрээний оролцогчдыг шинэ user-тай холбох ──
     // Шинэ хэрэглэгчийн email-тэй давхцаж буй pending invitations-ыг
     // contract_participants-д шинэ user_id-аар update хийнэ.
-    const linkRes = await query(
-      `UPDATE contract_participants
-       SET user_id = $1,
-           status  = 'REGISTERED'
-       WHERE LOWER(invite_email) = LOWER($2)
-         AND user_id IS NULL
-       RETURNING participant_id, contract_id`,
-      [user.user_id, user.email]
-    )
-    const linkedCount = linkRes.rowCount
+    const linkedCount = await repo.linkPendingInvitations(user.user_id, user.email)
 
     await log({ action: LOG.REGISTER, entity_type: 'user', entity_id: user.user_id, req })
 
@@ -133,13 +116,7 @@ const login = async (req, res) => {
       return res.status(400).json({ message: 'Утас эсвэл нууц үг буруу' })
     }
 
-    const result = await query(
-      `SELECT user_id, first_name, last_name, email, phone,
-              password_hash, user_type, status, address, profile_image_url
-       FROM users WHERE phone = $1`,
-      [phone]
-    )
-    const user = result.rows[0]
+    const user = await repo.findUserForLogin(phone)
     if (!user) return res.status(400).json({ message: 'Утас эсвэл нууц үг буруу' })
 
     const ok = await bcrypt.compare(password, user.password_hash)
@@ -149,19 +126,11 @@ const login = async (req, res) => {
     if (user.status === 'SUSPENDED') return res.status(403).json({ message: 'Бүртгэл түр хаагдсан' })
     if (user.status === 'DELETED')   return res.status(403).json({ message: 'Бүртгэл устгагдсан' })
 
-    await query(`UPDATE users SET last_login_at = NOW() WHERE user_id = $1`, [user.user_id])
+    await repo.markLastLogin(user.user_id)
 
     // ── Урилгатай гэрээний оролцогчдыг user-тай холбох (хэрэв бүртгэл хийсний дараа урилга ирсэн бол) ──
     if (user.email) {
-      await query(
-        `UPDATE contract_participants
-         SET user_id = $1,
-             status  = CASE WHEN status = 'PENDING_INVITE' OR status = 'INVITED'
-                            THEN 'REGISTERED' ELSE status END
-         WHERE LOWER(invite_email) = LOWER($2)
-           AND user_id IS NULL`,
-        [user.user_id, user.email]
-      )
+      await repo.linkInvitationsOnLogin(user.user_id, user.email)
     }
 
     const token = signToken({ user_id: user.user_id, user_type: user.user_type })
@@ -182,10 +151,8 @@ const resendOtp = async (req, res) => {
     if (!phone) return res.status(400).json({ message: 'Утасны дугаар шаардлагатай' })
 
     // users-д аль хэдийн бүртгэлтэй бол
-    const existingUser = await query(
-      `SELECT status FROM users WHERE phone = $1`, [phone]
-    )
-    if (existingUser.rows[0]?.status === 'ACTIVE') {
+    const existingUser = await repo.findUserStatusByPhone(phone)
+    if (existingUser?.status === 'ACTIVE') {
       return res.status(400).json({ message: 'Бүртгэл аль хэдийн баталгаажсан байна' })
     }
 

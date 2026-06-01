@@ -1,14 +1,9 @@
-﻿const multer = require('multer')
+const multer = require('multer')
 const path   = require('path')
 const fs     = require('fs')
 const { CloudinaryStorage } = require('multer-storage-cloudinary')
 const { cloudinary }        = require('./cloudinary')
 const { safeErrorMessage }  = require('./errors')
-
-// ── Хавтас үүсгэх helper ──────────────────────────────
-const mkdirp = (dir) => {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-}
 
 // ── Зөвшөөрөгдсөн файлын өргөтгөлүүд ─────────────────
 const ALLOWED = {
@@ -16,21 +11,6 @@ const ALLOWED = {
   document: ['.pdf', '.docx', '.doc'],
   any:      ['.jpg', '.jpeg', '.png', '.webp', '.pdf', '.docx', '.doc'],
 }
-
-// ── Storage factory ───────────────────────────────────
-const makeStorage = (folder) =>
-  multer.diskStorage({
-    destination: (req, file, cb) => {
-      const dir = path.join(process.cwd(), 'uploads', folder)
-      mkdirp(dir)
-      cb(null, dir)
-    },
-    filename: (req, file, cb) => {
-      const ext  = path.extname(file.originalname).toLowerCase()
-      const name = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`
-      cb(null, name)
-    },
-  })
 
 // ── File filter factory ───────────────────────────────
 const makeFilter = (allowed) => (req, file, cb) => {
@@ -44,25 +24,26 @@ const makeFilter = (allowed) => (req, file, cb) => {
 
 // ── Upload instances ──────────────────────────────────
 
-// Профайл зураг — зөвхөн зураг, 5MB
+// Профайл зураг — Cloudinary дээр (production-д persistent)
+// req.file.path = secure URL, req.file.filename = public_id
+const profileStorage = new CloudinaryStorage({
+  cloudinary,
+  params: (req, file) => {
+    const ext = path.extname(file.originalname).toLowerCase().replace('.', '') || 'jpg'
+    const uid = req.user?.user_id || 'anon'
+    return {
+      folder:        'econtract/profiles',
+      resource_type: 'image',
+      public_id:     `profile_${uid}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      format:        ext,
+    }
+  },
+})
+
 const profileUpload = multer({
-  storage:  makeStorage('profiles'),
-  limits:   { fileSize: 5 * 1024 * 1024 },
+  storage:    profileStorage,
+  limits:     { fileSize: 5 * 1024 * 1024 },
   fileFilter: makeFilter(ALLOWED.image),
-})
-
-// Гарын үсгийн зураг — зөвхөн зураг, 2MB
-const signatureUpload = multer({
-  storage:  makeStorage('signatures'),
-  limits:   { fileSize: 2 * 1024 * 1024 },
-  fileFilter: makeFilter(ALLOWED.image),
-})
-
-// Admin template файл — PDF/DOCX, 20MB
-const templateUpload = multer({
-  storage:  makeStorage('templates'),
-  limits:   { fileSize: 20 * 1024 * 1024 },
-  fileFilter: makeFilter(ALLOWED.document),
 })
 
 // ── Гэрээний хавсралт — Cloudinary дээр хадгална ──────
@@ -107,7 +88,9 @@ const handleUploadError = (err, req, res, next) => {
   next()
 }
 
-// ── Файл устгах helper ────────────────────────────────
+// ── Legacy local-disk файл устгах helper ──────────────
+// Profile зураг одоо Cloudinary дээр; энэ нь зөвхөн хуучин DB row-той
+// (Cloudinary биш local path) profile_image_url-ийг цэвэрлэхэд хэрэглэгдэнэ.
 const deleteFile = (relativePath) => {
   if (!relativePath) return
   try {
@@ -120,8 +103,6 @@ const deleteFile = (relativePath) => {
 
 module.exports = {
   profileUpload,
-  signatureUpload,
-  templateUpload,
   attachmentUpload,
   handleUploadError,
   deleteFile,

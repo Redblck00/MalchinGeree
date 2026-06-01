@@ -23,10 +23,22 @@ app.set('trust proxy', 1)
 // ── Security middleware ────────────────────────────────
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' }, contentSecurityPolicy: false }))
 app.use(express.json({ limit: '10mb' }))
+// FRONTEND_URL нь comma-аар тусгаарласан олон origin байж болно
+// (production + preview deployment + localhost зэрэг)
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean)
+
 app.use(cors({
-  origin:      process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: (origin, cb) => {
+    // Server-to-server, curl, Postman бүгд origin-гүй
+    if (!origin) return cb(null, true)
+    if (allowedOrigins.includes(origin)) return cb(null, true)
+    cb(new Error('CORS блок: ' + origin))
+  },
   credentials: true,
-  methods:     ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
 }))
 
 // ── Rate limit ─────────────────────────────────────────

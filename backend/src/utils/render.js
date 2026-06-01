@@ -31,7 +31,9 @@ const collectSchemaKeys = (fields, prefix = '') => {
 
     switch (field.type) {
       case 'field':
+      case 'text':       // custom field-ийн default type
       case 'number':
+      case 'float':      // custom field-ийн бутархай type
       case 'date':
       case 'textarea':
       case 'select':

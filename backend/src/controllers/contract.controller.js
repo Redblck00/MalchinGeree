@@ -1,6 +1,7 @@
 ﻿const crypto              = require('crypto')
 const Handlebars          = require('handlebars')
-const { query, withTransaction } = require('../config/db')
+const { withTransaction } = require('../config/db')
+const repo                = require('../repositories/contract.repository')
 const { renderContract, renderPreview, extractPlaceholders } = require('../utils/render')
 const { sendInviteEmail, sendContractEventEmail, sendSignOtpEmail } = require('../utils/email')
 const { generateOtp, saveOtp, verifyOtp: verifyOtpUtil } = require('../utils/otp')
@@ -54,38 +55,6 @@ function computeJsonDiff(oldObj, newObj, prefix = '') {
   return diff
 }
 
-// ── Template-уудыг харах ──────────────────────────────
-
-const getTemplates = async (req, res) => {
-  try {
-    const result = await query(
-      `SELECT template_id, name, description, is_standard, schema_json, created_at
-       FROM contract_templates
-       WHERE is_active = true
-       ORDER BY is_standard DESC, created_at DESC`
-    )
-    res.json({ data: result.rows })
-  } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
-  }
-}
-
-const getTemplateById = async (req, res) => {
-  try {
-    const result = await query(
-      `SELECT template_id, name, description, template_content,
-              schema_json, is_standard
-       FROM contract_templates
-       WHERE template_id = $1 AND is_active = true`,
-      [req.params.id]
-    )
-    if (!result.rows[0]) return res.status(404).json({ message: 'Загвар олдсонгүй' })
-    res.json({ data: result.rows[0] })
-  } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
-  }
-}
-
 // ── Гэрээ үүсгэх ─────────────────────────────────────
 // 1. template_content + filled_data_json → Handlebars render
 // 2. contracts хүснэгтэд хадгалах
@@ -105,12 +74,7 @@ const createContract = async (req, res) => {
     }
 
     // Template авах
-    const tmplRes = await query(
-      `SELECT template_id, name, template_content, schema_json
-       FROM contract_templates WHERE template_id = $1 AND is_active = true`,
-      [template_id]
-    )
-    const tmpl = tmplRes.rows[0]
+    const tmpl = await repo.findTemplateForContract(template_id)
     if (!tmpl) return res.status(404).json({ message: 'Загвар олдсонгүй' })
 
     // Хэрэглэгчийн мэдээлэл — сонгосон role-д auto-fill хийнэ
@@ -133,13 +97,13 @@ const createContract = async (req, res) => {
     // orphan contract эсвэл version-гүй contract үлдэхээс сэргийлнэ.
     const now = new Date()
     const { contract, rendered, versionId } = await withTransaction(async (db) => {
-      const contractRes = await db.query(
-        `INSERT INTO contracts (template_id, creator_id, title, filled_data_json, creator_role)
-         VALUES ($1,$2,$3,$4,$5)
-         RETURNING contract_id, contract_number, title, status, creator_role, created_at`,
-        [template_id, req.user.user_id, title || tmpl.name, enriched, creator_role]
-      )
-      const c = contractRes.rows[0]
+      const c = await repo.insertContract({
+        templateId:  template_id,
+        creatorId:   req.user.user_id,
+        title:       title || tmpl.name,
+        filledData:  enriched,
+        creatorRole: creator_role,
+      }, db)
 
       // contract_number авсны дараа render хийх — он/сар/өдөр-ийг meta-аар дамжуулна
       const { rendered, hash } = renderContract(
@@ -155,25 +119,16 @@ const createContract = async (req, res) => {
       )
 
       // contract_versions — ганц row per contract (Migration 007)
-      const versionRes = await db.query(
-        `INSERT INTO contract_versions
-           (contract_id, rendered_content, rendered_hash)
-         VALUES ($1, $2, $3)
-         RETURNING version_id`,
-        [c.contract_id, rendered, hash]
+      const version = await repo.insertVersion(
+        { contractId: c.contract_id, rendered, hash }, db
       )
 
       // Creator-г CREATOR role-той participant болгон нэмэх
       // Status='VIEWED' — бодит signature_blob орохоос өмнө 'SIGNED' болгохгүй.
       // /sign endpoint signature оруулсны дараа trigger автоматаар SIGNED болгоно.
-      await db.query(
-        `INSERT INTO contract_participants
-           (contract_id, user_id, role, status)
-         VALUES ($1,$2,'CREATOR','VIEWED')`,
-        [c.contract_id, req.user.user_id]
-      )
+      await repo.insertCreatorParticipant(c.contract_id, req.user.user_id, db)
 
-      return { contract: c, rendered, versionId: versionRes.rows[0].version_id }
+      return { contract: c, rendered, versionId: version.version_id }
     })
 
     await log({
@@ -202,20 +157,8 @@ const createContract = async (req, res) => {
 
 const getMyContracts = async (req, res) => {
   try {
-    const result = await query(
-      `SELECT c.contract_id, c.contract_number, c.title, c.status,
-              c.creator_role, c.current_turn, c.created_at, c.updated_at,
-              t.name AS template_name,
-              cp.role AS my_role,
-              cp.status AS my_status
-       FROM contracts c
-       JOIN contract_participants cp
-         ON cp.contract_id = c.contract_id AND cp.user_id = $1
-       LEFT JOIN contract_templates t ON c.template_id = t.template_id
-       ORDER BY c.created_at DESC`,
-      [req.user.user_id]
-    )
-    res.json({ data: result.rows })
+    const rows = await repo.findContractsForUser(req.user.user_id)
+    res.json({ data: rows })
   } catch (err) {
     res.status(400).json({ message: safeErrorMessage(err) })
   }
@@ -228,25 +171,14 @@ const getContractById = async (req, res) => {
     const { id } = req.params
 
     // Оролцогч эсэх шалгах
-    const partRes = await query(
-      `SELECT participant_id, role, status FROM contract_participants
-       WHERE contract_id = $1 AND user_id = $2`,
-      [id, req.user.user_id]
-    )
-    if (!partRes.rows[0]) return res.status(403).json({ message: 'Харах эрх байхгүй' })
+    const myParticipantRow = await repo.findParticipant(id, req.user.user_id)
+    if (!myParticipantRow) return res.status(403).json({ message: 'Харах эрх байхгүй' })
 
     // Хариу JSON-д буцаах my_status шинэчлэгдсэн утгаар явахын тулд reference барина
     // (auto-fill block доор myParticipant.status-г өөрчилнө)
 
     // Гэрээний мэдээлэл — template_content-ийг ч авна (re-render-д хэрэгтэй)
-    const cRes = await query(
-      `SELECT c.*, t.name AS template_name, t.schema_json, t.template_content
-       FROM contracts c
-       LEFT JOIN contract_templates t ON c.template_id = t.template_id
-       WHERE c.contract_id = $1`,
-      [id]
-    )
-    const contract = cRes.rows[0]
+    const contract = await repo.findContractWithTemplate(id)
     if (!contract) return res.status(404).json({ message: 'Гэрээ олдсонгүй' })
 
     // ── Auto-fill: үзэгчийн өөрийн талын мэдээлэл (name/phone/email/address)
@@ -254,7 +186,7 @@ const getContractById = async (req, res) => {
     // Зөвхөн lock-гүй (DRAFT/SENT) үед, бичих ажил байвал л хийнэ (idempotent).
     // CREATOR-д createContract аль хэдийн хийсэн боловч user профайл сүүлд
     // шинэчлэгдсэн бол энэ хэсэг засна. COUNTERPARTY-н хувьд анхны үзэлтэд эхэлж дүүргэгдэнэ.
-    const myParticipant = partRes.rows[0]
+    const myParticipant = myParticipantRow
     if (
       ['DRAFT', 'SENT'].includes(contract.status) &&
       contract.template_content && contract.schema_json
@@ -298,18 +230,8 @@ const getContractById = async (req, res) => {
             }
           )
 
-          await query(
-            `UPDATE contracts
-               SET filled_data_json = $1, updated_at = NOW()
-             WHERE contract_id = $2`,
-            [newData, id]
-          )
-          await query(
-            `UPDATE contract_versions
-               SET rendered_content = $1, rendered_hash = $2
-             WHERE contract_id = $3`,
-            [rendered, hash, id]
-          )
+          await repo.updateContractData(id, newData)
+          await repo.updateVersionRender(id, rendered, hash)
 
           contract.filled_data_json = newData
         }
@@ -320,12 +242,7 @@ const getContractById = async (req, res) => {
           myParticipant.role === 'COUNTERPARTY' &&
           ['INVITED', 'LINK_OPENED', 'REGISTERED'].includes(myParticipant.status)
         ) {
-          await query(
-            `UPDATE contract_participants
-               SET status = 'VIEWED'
-             WHERE participant_id = $1`,
-            [myParticipant.participant_id]
-          )
+          await repo.markParticipantViewed(myParticipant.participant_id)
           myParticipant.status = 'VIEWED'
         }
       } catch (err) {
@@ -335,17 +252,8 @@ const getContractById = async (req, res) => {
     }
 
     // contract_versions — ганц row (Migration 007)
-    const verRes = await query(
-      `SELECT version_id, rendered_content, rendered_hash,
-              pdf_url, qr_code_url,
-              blockchain_hash, blockchain_at, blockchain_tx_id,
-              created_at
-       FROM contract_versions
-       WHERE contract_id = $1`,
-      [id]
-    )
     // Version байхгүй бол (DRAFT) preview render хийнэ
-    let latestVersion = verRes.rows[0] || null
+    let latestVersion = await repo.findVersionFull(id) || null
     if (!latestVersion && contract.template_content) {
       const { rendered } = renderPreview(
         contract.template_content,
@@ -374,15 +282,10 @@ const getContractById = async (req, res) => {
         const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify/${id}`
         const qrDataUrl = await generateQRDataUrl(verifyUrl)
 
-        await query(
-          `UPDATE contract_versions
-           SET blockchain_hash = COALESCE(blockchain_hash, $1),
-               blockchain_at   = COALESCE(blockchain_at, $2),
-               blockchain_tx_id = COALESCE(blockchain_tx_id, $3),
-               qr_code_url     = $4
-           WHERE version_id = $5`,
-          [blockHash, blockAt, blockTxId, qrDataUrl, latestVersion.version_id]
-        )
+        await repo.updateVersionBlockchainBackfill({
+          versionId: latestVersion.version_id,
+          blockHash, blockAt, blockTxId, qrDataUrl,
+        })
 
         latestVersion.blockchain_hash  = blockHash
         latestVersion.blockchain_at    = blockAt
@@ -393,47 +296,17 @@ const getContractById = async (req, res) => {
       }
     }
     // Оролцогчид — profile_image_url + үнэлгээний дундаж/тоо хамт
-    const partListRes = await query(
-      `SELECT cp.participant_id, cp.user_id, cp.role, cp.status,
-              cp.invite_email, cp.invite_phone, cp.signed_at,
-              u.first_name, u.last_name, u.phone, u.email,
-              u.profile_image_url,
-              COALESCE(urs.rating_avg, 0)::FLOAT AS rating_avg,
-              COALESCE(urs.rating_count, 0)::INT AS rating_count
-       FROM contract_participants cp
-       LEFT JOIN users u                ON cp.user_id = u.user_id
-       LEFT JOIN user_rating_summary urs ON urs.user_id = cp.user_id
-       WHERE cp.contract_id = $1`,
-      [id]
-    )
+    const participants = await repo.findParticipantsDetailed(id)
     // Гарын үсгүүд
-    const sigRes = await query(
-      `SELECT cs.signature_id, cs.placeholder_key, cs.signed_at,
-              cs.participant_id, cs.signature_blob,
-              cp.role
-       FROM contract_signatures cs
-       JOIN contract_participants cp ON cs.participant_id = cp.participant_id
-       WHERE cs.contract_id = $1`,
-      [id]
-    )
+    const signatures = await repo.findSignatures(id)
 
     // Хавсралт материал
-    const attRes = await query(
-      `SELECT a.attachment_id, a.file_name, a.file_url, a.file_type,
-              a.file_size, a.sort_order, a.created_at, a.uploaded_by,
-              u.first_name AS uploader_first_name,
-              u.last_name  AS uploader_last_name
-       FROM contract_attachments a
-       LEFT JOIN users u ON u.user_id = a.uploaded_by
-       WHERE a.contract_id = $1
-       ORDER BY a.sort_order, a.created_at`,
-      [id]
-    )
+    const attachments = await repo.findAttachments(id)
     // ── Display зориулалтаар гарын үсэгтэй дахин рендер ──
     // schema-д signature key-уудыг нэмж, filled_data-д <img> blob нэмнэ
-    if (contract.template_content && sigRes.rows.length > 0) {
+    if (contract.template_content && signatures.length > 0) {
       const baseFields = contract.schema_json?.fields || []
-      const sigFields  = sigRes.rows.map(s => ({
+      const sigFields  = signatures.map(s => ({
         type: 'signature',
         key:  s.placeholder_key,
       }))
@@ -443,7 +316,7 @@ const getContractById = async (req, res) => {
       // SafeString-ээр боож, signature_blob утгыг HTML-attribute escape хийнэ
       // (XSS-аас сэргийлэх — хуучин буюу зөрчилтэй blob утга байсан ч аюулгүй).
       const displayData = JSON.parse(JSON.stringify(contract.filled_data_json || {}))
-      sigRes.rows.forEach(s => {
+      signatures.forEach(s => {
         const escapedBlob = Handlebars.escapeExpression(s.signature_blob || '')
         const imgHtml = new Handlebars.SafeString(
           `<img src="${escapedBlob}" alt="signature" style="max-height:60px;display:inline-block;vertical-align:middle"/>`
@@ -477,12 +350,12 @@ const getContractById = async (req, res) => {
       data: {
         ...contract,
         template_content: undefined, // frontend-д буцаахгүй (нууц)
-        my_role:        partRes.rows[0].role,
-        my_status:      partRes.rows[0].status,
+        my_role:        myParticipantRow.role,
+        my_status:      myParticipantRow.status,
         latest_version: latestVersion,
-        participants:   partListRes.rows,
-        signatures:     sigRes.rows,
-        attachments:    attRes.rows,
+        participants:   participants,
+        signatures:     signatures,
+        attachments:    attachments,
       },
     })
   } catch (err) {
@@ -497,19 +370,7 @@ const updateContract = async (req, res) => {
       ? note.trim().slice(0, 1000) || null
       : null
 
-    const cRes = await query(
-      `SELECT c.contract_id, c.contract_number, c.status, c.creator_id, c.creator_role, c.current_turn,
-              c.filled_data_json, c.title,
-              cp.role AS my_role,
-              t.template_content, t.schema_json
-       FROM contracts c
-       LEFT JOIN contract_participants cp
-         ON cp.contract_id = c.contract_id AND cp.user_id = $2
-       LEFT JOIN contract_templates t ON c.template_id = t.template_id
-       WHERE c.contract_id = $1`,
-      [id, req.user.user_id]
-    )
-    const contract = cRes.rows[0]
+    const contract = await repo.findContractForUpdate(id, req.user.user_id)
     if (!contract) return res.status(404).json({ message: 'Гэрээ олдсонгүй' })
 
     // Permission: DRAFT — зөвхөн creator, SENT — current_turn-той тал л засна
@@ -525,33 +386,27 @@ const updateContract = async (req, res) => {
     }
 
     // Гарын үсэг зурагдсан эсэхийг шалгах (LOCK)
-    const sigRes = await query(
-      `SELECT 1 FROM contract_signatures WHERE contract_id = $1 LIMIT 1`,
-      [id]
-    )
-    if (sigRes.rows[0]) {
+    if (await repo.hasSignature(id)) {
       return res.status(400).json({ message: 'Гарын үсэг зурагдсан гэрээг засаж болохгүй' })
     }
 
     const oldData = contract.filled_data_json || {}
     // ── Counterparty privilege guard ──────────────────────
     // Үүсгэгч (creator) бүх талбарыг засаж болно. Нөгөө тал (counterparty)
-    // зөвхөн өөрийн талын name/phone/email/address-г засна. Энэ нь
-    // counterparty seller-ийн өгөгдөл (нэр, үнэ гэх мэт) солихоос сэргийлнэ.
+    // нь хэлэлцээрийн нөхцөлүүдийг (мал, хүргэлт, төлбөр) болон өөрийн талын
+    // мэдээлэл (нэр/утас/имейл/хаяг/регистр)-г засна. Гэхдээ ҮҮСГЭГЧИЙН талын
+    // хувийн мэдээллийг солихоос сэргийлнэ (creator_role subtree хамгаалагдана).
+    // Бүх өөрчлөлт turn-based + change-log-той тул хэлэлцээрийн хүрээнд хяналттай.
     let newData
     if (isCreator) {
       newData = filled_data_json || oldData
     } else {
-      const myRoleKey = contract.creator_role === 'seller' ? 'buyer' : 'seller'
-      const allowedKeys = ['name', 'phone', 'email', 'address']
-      const incoming = (filled_data_json && filled_data_json[myRoleKey]) || {}
-      const cleanCp = {}
-      for (const k of allowedKeys) {
-        if (incoming[k] != null) cleanCp[k] = String(incoming[k]).trim()
-      }
+      const incoming = filled_data_json || {}
       newData = {
         ...oldData,
-        [myRoleKey]: { ...(oldData[myRoleKey] || {}), ...cleanCp },
+        ...incoming,
+        // Үүсгэгчийн талын хувийн мэдээллийг хуучнаар нь үлдээнэ (солих эрхгүй)
+        [contract.creator_role]: oldData[contract.creator_role] || {},
       }
     }
 
@@ -564,33 +419,20 @@ const updateContract = async (req, res) => {
     )
 
     // ── contract_versions UPDATE (ганц row) ───────────
-    await query(
-      `UPDATE contract_versions
-         SET rendered_content = $1,
-             rendered_hash    = $2
-       WHERE contract_id = $3`,
-      [rendered, hash, id]
-    )
+    await repo.updateVersionRender(id, rendered, hash)
 
     // ── contracts шинэчлэх ────────────────────────────
-    const updated = await query(
-      `UPDATE contracts
-         SET filled_data_json = $1,
-             title            = COALESCE($2, title),
-             updated_at       = NOW()
-       WHERE contract_id = $3
-       RETURNING contract_id, contract_number, title, status`,
-      [newData, title || null, id]
-    )
+    const updated = await repo.updateContractDataAndTitle(id, newData, title || null)
 
     // ── Аудит — өөрчлөгдсөн талбаруудыг л log хийх ────
     const diff = computeJsonDiff(oldData, newData)
     if (Object.keys(diff).length > 0 || cleanNote) {
-      await query(
-        `INSERT INTO contract_edit_log (contract_id, edited_by, changed_fields, note)
-         VALUES ($1, $2, $3, $4)`,
-        [id, req.user.user_id, JSON.stringify(diff), cleanNote]
-      )
+      await repo.insertEditLog({
+        contractId: id,
+        editedBy: req.user.user_id,
+        changedFields: JSON.stringify(diff),
+        note: cleanNote,
+      })
     }
 
     await log({
@@ -604,7 +446,7 @@ const updateContract = async (req, res) => {
 
     res.json({
       data: {
-        ...updated.rows[0],
+        ...updated,
         rendered_content: rendered,
         changed_fields_count: Object.keys(diff).length,
       },
@@ -617,15 +459,11 @@ const updateContract = async (req, res) => {
 const sendContract = async (req, res) => {
   try {
     const { id } = req.params
-    const { participants } = req.body
-    // participants: [{ role: 'COUNTERPARTY', email, phone, user_id? }]
+    const { participants, email_subject } = req.body
+    // participants:   [{ role: 'COUNTERPARTY', email, phone, user_id? }]
+    // email_subject?: AddParticipantModal-аас ирсэн custom invite subject
 
-    const cRes = await query(
-      `SELECT contract_id, contract_number, title, status, creator_id
-       FROM contracts WHERE contract_id = $1`,
-      [id]
-    )
-    const contract = cRes.rows[0]
+    const contract = await repo.findContractForSend(id)
     if (!contract) return res.status(404).json({ message: 'Гэрээ олдсонгүй' })
     if (contract.creator_id !== req.user.user_id) return res.status(403).json({ message: 'Илгээх эрх байхгүй' })
     if (contract.status !== 'DRAFT') return res.status(400).json({ message: 'Аль хэдийн илгээгдсэн' })
@@ -654,12 +492,7 @@ const sendContract = async (req, res) => {
     if (counterpartyRequests.length > 1) {
       return res.status(400).json({ message: 'Гэрээнд зөвхөн 1 нөгөө тал нэмэх боломжтой' })
     }
-    const existingCpRes = await query(
-      `SELECT COUNT(*) AS cnt FROM contract_participants
-       WHERE contract_id = $1 AND role = 'COUNTERPARTY'`,
-      [id]
-    )
-    const existingCpCount = parseInt(existingCpRes.rows[0]?.cnt || '0', 10)
+    const existingCpCount = await repo.countCounterparties(id)
     if (existingCpCount + counterpartyRequests.length > 1) {
       return res.status(400).json({ message: 'Энэ гэрээнд аль хэдийн нөгөө тал нэмэгдсэн байна' })
     }
@@ -674,26 +507,25 @@ const sendContract = async (req, res) => {
     const added = await withTransaction(async (db) => {
       const addedRows = []
       for (const p of participants || []) {
-        const partRes = await db.query(
-          `INSERT INTO contract_participants
-             (contract_id, user_id, role, invite_email, invite_phone, status, invited_at)
-           VALUES ($1,$2,$3,$4,$5,'INVITED',NOW())
-           ON CONFLICT DO NOTHING
-           RETURNING participant_id, role, invite_email`,
-          [id, p.user_id || null, p.role || 'COUNTERPARTY', p.email || null, p.phone || null]
-        )
-        if (partRes.rows[0]) {
-          addedRows.push(partRes.rows[0])
+        const addedPart = await repo.insertInvitedParticipant({
+          contractId: id,
+          userId:     p.user_id || null,
+          role:       p.role || 'COUNTERPARTY',
+          email:      p.email || null,
+          phone:      p.phone || null,
+        }, db)
+        if (addedPart) {
+          addedRows.push(addedPart)
 
           // ── Invitation token үүсгэж participant_invitations-д хадгалах ──
           const token     = generateInviteToken()
           const tokenHash = hashToken(token)
-          await db.query(
-            `INSERT INTO participant_invitations
-               (participant_id, token_hash, sent_to_email, sent_to_phone)
-             VALUES ($1, $2, $3, $4)`,
-            [partRes.rows[0].participant_id, tokenHash, p.email || null, p.phone || null]
-          )
+          await repo.insertInvitation({
+            participantId: addedPart.participant_id,
+            tokenHash,
+            email: p.email || null,
+            phone: p.phone || null,
+          }, db)
 
           if (p.email)   emailQueue.push({ to: p.email, token })
           if (p.user_id) notifyQueue.push({ user_id: p.user_id })
@@ -701,15 +533,7 @@ const sendContract = async (req, res) => {
       }
 
       // Contract-г SENT болгох + ээлж нөгөө талд шилжих
-      await db.query(
-        `UPDATE contracts
-           SET status       = 'SENT',
-               current_turn = 'COUNTERPARTY',
-               sent_at      = NOW(),
-               updated_at   = NOW()
-         WHERE contract_id = $1`,
-        [id]
-      )
+      await repo.markContractSent(id, db)
 
       return addedRows
     })
@@ -725,6 +549,7 @@ const sendContract = async (req, res) => {
         contractTitle: contract.title,
         inviteUrl,
         senderName,
+        customSubject: email_subject,
       }).catch(console.error)
     }
     for (const n of notifyQueue) {
@@ -759,14 +584,7 @@ const requestSignOtp = async (req, res) => {
     }
 
     // 1. Оролцогч + Гэрээний статус шалгах нэг queryd
-    const partRes = await query(
-      `SELECT cp.participant_id, cp.role, cp.status AS my_status, c.status AS contract_status, c.title
-       FROM contract_participants cp
-       JOIN contracts c ON c.contract_id = cp.contract_id
-       WHERE cp.contract_id = $1 AND cp.user_id = $2`,
-      [id, req.user.user_id]
-    )
-    const part = partRes.rows[0]
+    const part = await repo.findSignContext(id, req.user.user_id)
     if (!part) return res.status(403).json({ message: 'Энэ гэрээнд оролцогч биш' })
     if (part.my_status === 'SIGNED') {
       return res.status(400).json({ message: 'Та аль хэдийн гарын үсэг зурсан' })
@@ -826,14 +644,7 @@ const signContract = async (req, res) => {
     }
 
     // Оролцогч + контрактын статусыг нэг хүсэлтэд шалгана
-    const partRes = await query(
-      `SELECT cp.participant_id, cp.role, cp.status AS my_status, c.status AS contract_status
-       FROM contract_participants cp
-       JOIN contracts c ON c.contract_id = cp.contract_id
-       WHERE cp.contract_id = $1 AND cp.user_id = $2`,
-      [id, req.user.user_id]
-    )
-    const part = partRes.rows[0]
+    const part = await repo.findSignContext(id, req.user.user_id)
     if (!part) return res.status(403).json({ message: 'Энэ гэрээнд оролцогч биш' })
     if (part.my_status === 'SIGNED') return res.status(400).json({ message: 'Аль хэдийн гарын үсэг зурсан' })
 
@@ -859,23 +670,19 @@ const signContract = async (req, res) => {
     }
 
     // contract_versions — ганц row per contract (Migration 007)
-    const verRes = await query(
-      `SELECT version_id FROM contract_versions WHERE contract_id = $1`,
-      [id]
-    )
-    if (!verRes.rows[0]) return res.status(400).json({ message: 'Гэрээний хувилбар олдсонгүй' })
+    const version = await repo.findVersionId(id)
+    if (!version) return res.status(400).json({ message: 'Гэрээний хувилбар олдсонгүй' })
 
     // Гарын үсэг хадгалах
-    await query(
-      `INSERT INTO contract_signatures
-         (contract_id, participant_id, version_id, placeholder_key, signature_blob,
-          signed_ip, signed_user_agent)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
-       ON CONFLICT (contract_id, participant_id, placeholder_key) DO UPDATE
-       SET signature_blob = EXCLUDED.signature_blob, signed_at = NOW()`,
-      [id, part.participant_id, verRes.rows[0].version_id, placeholder_key,
-       signature_blob, req.ip, req.headers['user-agent']]
-    )
+    await repo.upsertSignature({
+      contractId:     id,
+      participantId:  part.participant_id,
+      versionId:      version.version_id,
+      placeholderKey: placeholder_key,
+      blob:           signature_blob,
+      ip:             req.ip,
+      userAgent:      req.headers['user-agent'],
+    })
     // → after_signature_insert trigger: participant.status = SIGNED
     // → after_participant_signed trigger: contract.status шинэчлэгдэнэ
 
@@ -884,34 +691,15 @@ const signContract = async (req, res) => {
     // ── Ээлж шилжүүлэх (нөгөө тал зурах ёстой) ──────
     // FULLY_SIGNED болсон үед current_turn = NULL (хэн ч хүлээхгүй)
     const nextTurn = part.role === 'CREATOR' ? 'COUNTERPARTY' : 'CREATOR'
-    await query(
-      `UPDATE contracts
-         SET current_turn = CASE WHEN status = 'FULLY_SIGNED' THEN NULL ELSE $1::participant_role_enum END,
-             updated_at   = NOW()
-       WHERE contract_id = $2`,
-      [nextTurn, id]
-    )
+    await repo.updateTurnAfterSign(id, nextTurn)
 
     // ── Notification logic ──────────────────────────
-    const updated = await query(
-      `SELECT c.contract_id, c.status, c.title, c.creator_id, c.current_turn
-       FROM contracts c WHERE c.contract_id = $1`,
-      [id]
-    )
-    const updatedContract = updated.rows[0]
+    const updatedContract = await repo.findContractStatusInfo(id)
     const signerName = `${req.user.last_name} ${req.user.first_name}`.trim()
 
     // Эсрэг талын user_id + email-г олж IN_APP + EMAIL хосоор мэдэгдэх
     const otherSideRole = part.role === 'CREATOR' ? 'COUNTERPARTY' : 'CREATOR'
-    const otherRes = await query(
-      `SELECT cp.user_id, cp.invite_email, u.email AS user_email
-       FROM contract_participants cp
-       LEFT JOIN users u ON u.user_id = cp.user_id
-       WHERE cp.contract_id = $1 AND cp.role = $2
-       LIMIT 1`,
-      [id, otherSideRole]
-    )
-    const other = otherRes.rows[0]
+    const other = await repo.findParticipantContactByRole(id, otherSideRole)
     const contractUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/contracts/${id}`
 
     if (other?.user_id) {
@@ -961,26 +749,20 @@ const confirmContract = async (req, res) => {
   try {
     const { id } = req.params
 
-    const cRes = await query(
-      `SELECT contract_id, status, creator_id, creator_role, filled_data_json
-       FROM contracts WHERE contract_id = $1`,
-      [id]
-    )
-    const contract = cRes.rows[0]
+    const contract = await repo.findContractForConfirm(id)
     if (!contract) return res.status(404).json({ message: 'Гэрээ олдсонгүй' })
     if (contract.creator_id !== req.user.user_id) return res.status(403).json({ message: 'Эрх байхгүй' })
     if (contract.status !== 'FULLY_SIGNED') return res.status(400).json({ message: 'Бүх оролцогч гарын үсэг зурсан байх ёстой' })
 
-    const verRes = await query(
-      `SELECT version_id FROM contract_versions WHERE contract_id = $1`,
-      [id]
-    )
+    const confirmVersion = await repo.findVersionId(id)
 
-    await query(
-      `INSERT INTO contract_confirmations (contract_id, confirmed_by, version_id, confirmed_ip, confirmed_user_agent)
-       VALUES ($1,$2,$3,$4,$5)`,
-      [id, req.user.user_id, verRes.rows[0].version_id, req.ip, req.headers['user-agent']]
-    )
+    await repo.insertConfirmation({
+      contractId:  id,
+      confirmedBy: req.user.user_id,
+      versionId:   confirmVersion.version_id,
+      ip:          req.ip,
+      userAgent:   req.headers['user-agent'],
+    })
     // → after_confirmation_insert trigger: status = COMPLETED
 
     // ── Малын гүйлгээ хадгалах ──────────────────────────
@@ -989,12 +771,8 @@ const confirmContract = async (req, res) => {
     // үлдэхээс сэргийлнэ). Гэрээ COMPLETED хэвээр — статистик дутах нь
     // main flow-ыг хаахгүй (анхны бизнес логик хадгалагдсан).
     try {
-      const partRes = await query(
-        `SELECT user_id, role FROM contract_participants
-         WHERE contract_id = $1 AND user_id IS NOT NULL`,
-        [id]
-      )
-      const counterparty = partRes.rows.find(p => p.role === 'COUNTERPARTY')
+      const parts = await repo.findParticipantsWithUser(id)
+      const counterparty = parts.find(p => p.role === 'COUNTERPARTY')
       const sellerId = contract.creator_role === 'seller' ? contract.creator_id : counterparty?.user_id
       const buyerId  = contract.creator_role === 'buyer'  ? contract.creator_id : counterparty?.user_id
 
@@ -1006,13 +784,15 @@ const confirmContract = async (req, res) => {
             const price = parseFloat(it.price_per_unit) || 0
             const type  = (it.livestock_type || '').toString().trim()
             if (cnt > 0 && type) {
-              await db.query(
-                `INSERT INTO livestock_transactions
-                   (contract_id, seller_id, buyer_id, livestock_type,
-                    count, price_per_unit, total_amount)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-                [id, sellerId, buyerId, type, cnt, price, cnt * price]
-              )
+              await repo.insertLivestockTransaction({
+                contractId:   id,
+                sellerId,
+                buyerId,
+                type,
+                count:        cnt,
+                pricePerUnit: price,
+                totalAmount:  cnt * price,
+              }, db)
             }
           }
         })
@@ -1026,12 +806,7 @@ const confirmContract = async (req, res) => {
 
     // ── Blockchain ledger-д бүртгэх + QR код үүсгэх ──
     try {
-      const verRes = await query(
-        `SELECT version_id, rendered_hash FROM contract_versions
-         WHERE contract_id = $1`,
-        [id]
-      )
-      const ver = verRes.rows[0]
+      const ver = await repo.findVersionWithHash(id)
       if (ver) {
         // 1. Шинэ блок үүсгэх
         const block = await addBlock(id, ver.rendered_hash)
@@ -1041,15 +816,13 @@ const confirmContract = async (req, res) => {
         const qrDataUrl = await generateQRDataUrl(verifyUrl)
 
         // 3. contract_versions-д blockchain мэдээллийг шинэчлэх
-        await query(
-          `UPDATE contract_versions
-           SET blockchain_hash = $1,
-               blockchain_at   = $2,
-               blockchain_tx_id = $3,
-               qr_code_url     = $4
-           WHERE version_id = $5`,
-          [block.block_hash, block.timestamp, block.block_id, qrDataUrl, ver.version_id]
-        )
+        await repo.updateVersionBlockchain({
+          versionId: ver.version_id,
+          blockHash: block.block_hash,
+          blockAt:   block.timestamp,
+          blockTxId: block.block_id,
+          qrDataUrl,
+        })
       }
     } catch (err) {
       console.error('Blockchain registration failed:', err.message)
@@ -1057,10 +830,10 @@ const confirmContract = async (req, res) => {
     }
 
     // Бүх оролцогчдод (creator-аас бусад) баталгаажсан тухай мэдэгдэх
-    const titleRes = await query(`SELECT title FROM contracts WHERE contract_id = $1`, [id])
+    const titleRow = await repo.findContractTitle(id)
     await notifyParticipants(id, {
       title:        'Гэрээ баталгаажлаа ✓',
-      message:      `"${titleRes.rows[0]?.title || 'Гэрээ'}" амжилттай баталгаажиж, хүчин төгөлдөр болсон`,
+      message:      `"${titleRow?.title || 'Гэрээ'}" амжилттай баталгаажиж, хүчин төгөлдөр болсон`,
       exceptUserId: req.user.user_id,
     })
 
@@ -1087,20 +860,7 @@ const fillCounterpartyData = async (req, res) => {
     }
 
     // Гэрээ + миний participant role-ийг шалгах
-    const cRes = await query(
-      `SELECT c.contract_id, c.status, c.creator_role, c.creator_id,
-              c.template_id, c.contract_number, c.title,
-              c.filled_data_json,
-              cp.role AS my_role, cp.status AS my_status,
-              t.template_content, t.schema_json
-       FROM contracts c
-       JOIN contract_participants cp
-         ON cp.contract_id = c.contract_id AND cp.user_id = $2
-       LEFT JOIN contract_templates t ON c.template_id = t.template_id
-       WHERE c.contract_id = $1`,
-      [id, req.user.user_id]
-    )
-    const contract = cRes.rows[0]
+    const contract = await repo.findContractForCounterpartyFill(id, req.user.user_id)
     if (!contract) return res.status(404).json({ message: 'Гэрээ олдсонгүй эсвэл эрх байхгүй' })
     if (contract.my_role !== 'COUNTERPARTY') {
       return res.status(403).json({ message: 'Зөвхөн нөгөө тал бөглөх эрхтэй' })
@@ -1150,32 +910,20 @@ const fillCounterpartyData = async (req, res) => {
 
     // ── contract_versions UPDATE (ганц row, Migration 007) ──
     if (rendered) {
-      await query(
-        `UPDATE contract_versions
-           SET rendered_content = $1,
-               rendered_hash    = $2
-         WHERE contract_id = $3`,
-        [rendered, hash, id]
-      )
+      await repo.updateVersionRender(id, rendered, hash)
     }
 
     // ── contracts шинэчлэх ──
-    await query(
-      `UPDATE contracts
-         SET filled_data_json = $1,
-             updated_at       = NOW()
-       WHERE contract_id = $2`,
-      [newData, id]
-    )
+    await repo.updateContractData(id, newData)
 
     // ── Аудит — өөрчлөгдсөн талбаруудыг л log хийх ──
     const diff = computeJsonDiff(contract.filled_data_json || {}, newData)
     if (Object.keys(diff).length > 0) {
-      await query(
-        `INSERT INTO contract_edit_log (contract_id, edited_by, changed_fields)
-         VALUES ($1, $2, $3)`,
-        [id, req.user.user_id, JSON.stringify(diff)]
-      )
+      await repo.insertEditLog({
+        contractId: id,
+        editedBy: req.user.user_id,
+        changedFields: JSON.stringify(diff),
+      })
     }
 
     await log({
@@ -1212,7 +960,6 @@ const fillCounterpartyData = async (req, res) => {
 //   • Өөрчлөлтгүй ч note байгаа бол note-only лог үлдээнэ
 //   • current_turn → нөгөө талд шилжинэ
 //   • Нөгөө талд in-app (note-г preview-д) + email notification
-// ══════════════════════════════════════════════════════
 const returnContract = async (req, res) => {
   try {
     const { id } = req.params
@@ -1222,19 +969,7 @@ const returnContract = async (req, res) => {
       : null
 
     // Гэрээ + миний participant role-ийг шалгах
-    const cRes = await query(
-      `SELECT c.contract_id, c.contract_number, c.status, c.creator_id, c.creator_role,
-              c.current_turn, c.title, c.filled_data_json,
-              cp.participant_id, cp.role AS my_role,
-              t.template_content, t.schema_json
-       FROM contracts c
-       JOIN contract_participants cp
-         ON cp.contract_id = c.contract_id AND cp.user_id = $2
-       LEFT JOIN contract_templates t ON c.template_id = t.template_id
-       WHERE c.contract_id = $1`,
-      [id, req.user.user_id]
-    )
-    const contract = cRes.rows[0]
+    const contract = await repo.findContractForReturn(id, req.user.user_id)
     if (!contract)                return res.status(404).json({ message: 'Гэрээ олдсонгүй эсвэл эрх байхгүй' })
     if (contract.status !== 'SENT') return res.status(400).json({ message: 'Зөвхөн илгээгдсэн гэрээг буцаах боломжтой' })
     if (contract.my_role !== contract.current_turn) {
@@ -1242,33 +977,26 @@ const returnContract = async (req, res) => {
     }
 
     // Гарын үсэг зурагдсан эсэхийг шалгах (LOCK)
-    const sigRes = await query(
-      `SELECT 1 FROM contract_signatures WHERE contract_id = $1 LIMIT 1`,
-      [id]
-    )
-    if (sigRes.rows[0]) {
+    if (await repo.hasSignature(id)) {
       return res.status(400).json({ message: 'Гарын үсэг зурагдсан гэрээг засаж болохгүй' })
     }
 
     const oldData = contract.filled_data_json || {}
     // ── Counterparty privilege guard ──────────────────────
-    // updateContract-тай ижил логик: counterparty зөвхөн өөрийн талын
-    // name/phone/email/address-г засна. Creator бүх талбарыг засаж болно.
+    // updateContract-тай ижил логик: counterparty хэлэлцээрийн нөхцөл болон
+    // өөрийн талын мэдээллийг засна, гэхдээ ҮҮСГЭГЧИЙН талын хувийн мэдээллийг
+    // солихгүй. Creator бүх талбарыг засаж болно.
     const isCreator = contract.creator_id === req.user.user_id
     let newData
     if (isCreator) {
       newData = filled_data_json || oldData
     } else {
-      const myRoleKey = contract.creator_role === 'seller' ? 'buyer' : 'seller'
-      const allowedKeys = ['name', 'phone', 'email', 'address']
-      const incoming = (filled_data_json && filled_data_json[myRoleKey]) || {}
-      const cleanCp = {}
-      for (const k of allowedKeys) {
-        if (incoming[k] != null) cleanCp[k] = String(incoming[k]).trim()
-      }
+      const incoming = filled_data_json || {}
       newData = {
         ...oldData,
-        [myRoleKey]: { ...(oldData[myRoleKey] || {}), ...cleanCp },
+        ...incoming,
+        // Үүсгэгчийн талын хувийн мэдээллийг хуучнаар нь үлдээнэ (солих эрхгүй)
+        [contract.creator_role]: oldData[contract.creator_role] || {},
       }
     }
     const diff    = computeJsonDiff(oldData, newData)
@@ -1283,40 +1011,25 @@ const returnContract = async (req, res) => {
           newData,
           { contract_number: contract.contract_number }
         )
-        await query(
-          `UPDATE contract_versions
-             SET rendered_content = $1, rendered_hash = $2
-           WHERE contract_id = $3`,
-          [rendered, hash, id]
-        )
+        await repo.updateVersionRender(id, rendered, hash)
       }
 
-      await query(
-        `UPDATE contracts
-           SET filled_data_json = $1, updated_at = NOW()
-         WHERE contract_id = $2`,
-        [newData, id]
-      )
+      await repo.updateContractData(id, newData)
     }
 
     // ── edit_log: өөрчлөлт ЭСВЭЛ зөвхөн note бичсэн бол үлдээнэ ──
     if (hasChanges || cleanNote) {
-      await query(
-        `INSERT INTO contract_edit_log (contract_id, edited_by, changed_fields, note)
-         VALUES ($1, $2, $3, $4)`,
-        [id, req.user.user_id, JSON.stringify(diff), cleanNote]
-      )
+      await repo.insertEditLog({
+        contractId: id,
+        editedBy: req.user.user_id,
+        changedFields: JSON.stringify(diff),
+        note: cleanNote,
+      })
     }
 
     // ── Ээлж шилжүүлэх ───────────────────────────────
     const nextTurn = contract.my_role === 'CREATOR' ? 'COUNTERPARTY' : 'CREATOR'
-    await query(
-      `UPDATE contracts
-         SET current_turn = $1::participant_role_enum,
-             updated_at   = NOW()
-       WHERE contract_id = $2`,
-      [nextTurn, id]
-    )
+    await repo.updateTurn(id, nextTurn)
 
     // ── Аудит лог ────────────────────────────────────
     await log({
@@ -1334,15 +1047,7 @@ const returnContract = async (req, res) => {
     })
 
     // ── Нөгөө талд notification (in-app + email) ──────
-    const otherRes = await query(
-      `SELECT cp.user_id, cp.invite_email, u.email AS user_email
-       FROM contract_participants cp
-       LEFT JOIN users u ON u.user_id = cp.user_id
-       WHERE cp.contract_id = $1 AND cp.role = $2
-       LIMIT 1`,
-      [id, nextTurn]
-    )
-    const other = otherRes.rows[0]
+    const other = await repo.findParticipantContactByRole(id, nextTurn)
     const actorName = `${req.user.last_name} ${req.user.first_name}`.trim()
     const contractUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/contracts/${id}`
 
@@ -1392,34 +1097,20 @@ const verifyInviteToken = async (req, res) => {
   const tokenHash = hashToken(token)
 
   const logAttempt = async (invitationId, result) => {
-    await query(
-      `INSERT INTO token_access_log
-         (invitation_id, token_hash_partial, result, ip_address, user_agent)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [invitationId || null, tokenHash.slice(0, 16), result, req.ip, req.headers['user-agent']]
-    ).catch(() => {})
+    await repo.insertTokenAccessLog({
+      invitationId:     invitationId || null,
+      tokenHashPartial: tokenHash.slice(0, 16),
+      result,
+      ip:               req.ip,
+      userAgent:        req.headers['user-agent'],
+    }).catch(() => {})
   }
 
   try {
     // EXISTS subquery — invite_email-тэй таарах хэрэглэгч users хүснэгтэд байгаа эсэхийг шалгана.
     // Энэ нь counterparty өмнө бүртгэгдсэн хэдий ч participant_invitations
     // үүсгэх үед user_id-аар холбогдоогүй (зөвхөн email-ээр) тохиолдолд хэрэгтэй.
-    const invRes = await query(
-      `SELECT pi.invitation_id, pi.participant_id,
-              pi.expires_at, pi.is_revoked, pi.use_count,
-              cp.contract_id, cp.user_id, cp.invite_email, cp.role, cp.status,
-              EXISTS(
-                SELECT 1 FROM users u
-                WHERE cp.invite_email IS NOT NULL
-                  AND LOWER(u.email) = LOWER(cp.invite_email)
-                  AND u.status <> 'DELETED'
-              ) AS email_has_account
-       FROM participant_invitations pi
-       JOIN contract_participants  cp ON pi.participant_id = cp.participant_id
-       WHERE pi.token_hash = $1`,
-      [tokenHash]
-    )
-    const inv = invRes.rows[0]
+    const inv = await repo.findInvitationByTokenHash(tokenHash)
 
     if (!inv) {
       await logAttempt(null, 'NOT_FOUND')
@@ -1439,24 +1130,15 @@ const verifyInviteToken = async (req, res) => {
     }
 
     // use_count + сүүлийн хэрэглэлтийн мэдээлэл шинэчлэх
-    await query(
-      `UPDATE participant_invitations
-       SET use_count        = use_count + 1,
-           last_used_at     = NOW(),
-           first_ip         = COALESCE(first_ip, $1::inet),
-           first_user_agent = COALESCE(first_user_agent, $2)
-       WHERE invitation_id = $3`,
-      [req.ip, req.headers['user-agent'] || null, inv.invitation_id]
-    )
+    await repo.incrementInvitationUse({
+      invitationId: inv.invitation_id,
+      ip:           req.ip,
+      userAgent:    req.headers['user-agent'] || null,
+    })
 
     // INVITED → LINK_OPENED болгох
     if (inv.status === 'INVITED') {
-      await query(
-        `UPDATE contract_participants
-         SET status = 'LINK_OPENED', link_opened_at = NOW()
-         WHERE participant_id = $1`,
-        [inv.participant_id]
-      )
+      await repo.markParticipantLinkOpened(inv.participant_id)
     }
 
     await logAttempt(inv.invitation_id, 'SUCCESS')
@@ -1493,16 +1175,7 @@ const cancelContract = async (req, res) => {
     // ОНЦ ЧУХАЛ: cp.user_id = $2 нийт зэрэгцээ guard биш — JOIN нь хэрэв
     // хэрэглэгч оролцогч биш бол row буцаахгүй (LEFT JOIN биш). Энэ нь
     // permission-ийн нэг хэсэг.
-    const cRes = await query(
-      `SELECT c.contract_id, c.status, c.creator_id, c.title,
-              cp.role AS my_role
-       FROM contracts c
-       JOIN contract_participants cp
-         ON cp.contract_id = c.contract_id AND cp.user_id = $2
-       WHERE c.contract_id = $1`,
-      [id, req.user.user_id]
-    )
-    const contract = cRes.rows[0]
+    const contract = await repo.findContractForCancel(id, req.user.user_id)
     if (!contract) {
       // Гэрээ байхгүй ЭСВЭЛ хэрэглэгч оролцогч биш — мэдээлэл leak болохгүй
       return res.status(403).json({ message: 'Цуцлах эрх байхгүй' })
@@ -1528,22 +1201,18 @@ const cancelContract = async (req, res) => {
     // буцаагдана. Бид rollback хийнэ.
     let cancelled = false
     await withTransaction(async (db) => {
-      const upd = await db.query(
-        `UPDATE contracts
-            SET status = 'CANCELLED', updated_at = NOW()
-          WHERE contract_id = $1 AND status = $2
-        RETURNING contract_id`,
-        [id, oldStatus]
-      )
-      if (upd.rowCount === 0) {
+      const rowCount = await repo.cancelContractIfStatus(id, oldStatus, db)
+      if (rowCount === 0) {
         // Зэрэгцээ статус өөрчлөгдсөн — цуцлах боломжгүй болсон
         return
       }
-      await db.query(
-        `INSERT INTO contract_status_history (contract_id, from_status, to_status, changed_by, reason)
-         VALUES ($1,$2,'CANCELLED',$3,$4)`,
-        [id, oldStatus, req.user.user_id, cleanReason]
-      )
+      await repo.insertStatusHistory({
+        contractId: id,
+        fromStatus: oldStatus,
+        toStatus:   'CANCELLED',
+        changedBy:  req.user.user_id,
+        reason:     cleanReason,
+      }, db)
       cancelled = true
     })
 
@@ -1578,11 +1247,7 @@ const closeContract = async (req, res) => {
     const { id } = req.params
     const { reason } = req.body
 
-    const cRes = await query(
-      `SELECT contract_id, status, creator_id, title FROM contracts WHERE contract_id = $1`,
-      [id]
-    )
-    const contract = cRes.rows[0]
+    const contract = await repo.findContractForClose(id)
     if (!contract) return res.status(404).json({ message: 'Гэрээ олдсонгүй' })
     if (contract.creator_id !== req.user.user_id) {
       return res.status(403).json({ message: 'Зөвхөн үүсгэгч хаах эрхтэй' })
@@ -1591,21 +1256,15 @@ const closeContract = async (req, res) => {
       return res.status(400).json({ message: 'Зөвхөн баталгаажсан гэрээг хаах боломжтой' })
     }
 
-    await query(
-      `UPDATE contracts
-       SET status = 'CLOSED',
-           closed_at = NOW(),
-           close_reason = $1,
-           updated_at = NOW()
-       WHERE contract_id = $2`,
-      [reason || null, id]
-    )
+    await repo.closeContractRow(id, reason || null)
 
-    await query(
-      `INSERT INTO contract_status_history (contract_id, from_status, to_status, changed_by, reason)
-       VALUES ($1, 'COMPLETED', 'CLOSED', $2, $3)`,
-      [id, req.user.user_id, reason || 'creator closed']
-    )
+    await repo.insertStatusHistory({
+      contractId: id,
+      fromStatus: 'COMPLETED',
+      toStatus:   'CLOSED',
+      changedBy:  req.user.user_id,
+      reason:     reason || 'creator closed',
+    })
 
     await log({ user_id: req.user.user_id, action: 'CONTRACT_CLOSE',
                 entity_type: 'contract', entity_id: id, req })
@@ -1624,306 +1283,34 @@ const closeContract = async (req, res) => {
   }
 }
 
-// ══════════════════════════════════════════════════════
-// ҮНЭЛГЭЭ ӨГӨХ (UPSERT — засаж болно)
-// POST /api/contracts/:id/ratings
-// Body: { rated_user_id, rating: 1-5, comment? }
-// ══════════════════════════════════════════════════════
-const submitRating = async (req, res) => {
-  try {
-    const { id } = req.params
-    const { rated_user_id, rating, comment } = req.body
-
-    if (!rated_user_id) return res.status(400).json({ message: 'rated_user_id шаардлагатай' })
-    const star = parseInt(rating, 10)
-    if (isNaN(star) || star < 1 || star > 5) {
-      return res.status(400).json({ message: 'Үнэлгээ 1-5 хооронд байх ёстой' })
-    }
-    if (rated_user_id === req.user.user_id) {
-      return res.status(400).json({ message: 'Өөрийгөө үнэлж болохгүй' })
-    }
-
-    // Гэрээ CLOSED, rater болон rated_user хоёулаа оролцогч мөн эсэх
-    const checkRes = await query(
-      `SELECT c.status,
-              EXISTS(SELECT 1 FROM contract_participants
-                     WHERE contract_id = $1 AND user_id = $2) AS rater_in,
-              EXISTS(SELECT 1 FROM contract_participants
-                     WHERE contract_id = $1 AND user_id = $3) AS rated_in
-       FROM contracts c WHERE c.contract_id = $1`,
-      [id, req.user.user_id, rated_user_id]
-    )
-    const chk = checkRes.rows[0]
-    if (!chk) return res.status(404).json({ message: 'Гэрээ олдсонгүй' })
-    if (chk.status !== 'CLOSED') {
-      return res.status(400).json({ message: 'Зөвхөн хаагдсан гэрээнд үнэлгээ өгөх боломжтой' })
-    }
-    if (!chk.rater_in)  return res.status(403).json({ message: 'Энэ гэрээний оролцогч биш' })
-    if (!chk.rated_in)  return res.status(400).json({ message: 'Үнэлэгдэх хүн энэ гэрээнд оролцоогүй' })
-
-    // UPSERT — дахин засаж болно
-    const insRes = await query(
-      `INSERT INTO user_ratings (contract_id, rater_id, rated_user_id, rating, comment)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (contract_id, rater_id, rated_user_id)
-       DO UPDATE SET rating = EXCLUDED.rating,
-                     comment = EXCLUDED.comment,
-                     created_at = NOW()
-       RETURNING rating_id, rating, comment, created_at`,
-      [id, req.user.user_id, rated_user_id, star, comment || null]
-    )
-
-    await log({ user_id: req.user.user_id, action: 'RATING_SUBMIT',
-                entity_type: 'contract', entity_id: id, req,
-                details: { rated_user_id, rating: star } })
-
-    // Үнэлүүлсэн хэрэглэгчид мэдэгдэх
-    const raterName = `${req.user.last_name} ${req.user.first_name}`.trim()
-    await notify({
-      user_id:     rated_user_id,
-      contract_id: id,
-      title:       'Танд үнэлгээ өглөө',
-      message:     `${raterName} танд ${star} оноо өгсөн${comment ? `: "${comment}"` : ''}`,
-    })
-
-    res.json({ message: 'Үнэлгээ хадгалагдлаа', data: insRes.rows[0] })
-  } catch (err) {
-    console.error(err)
-    res.status(400).json({ message: safeErrorMessage(err) })
-  }
-}
-
-// ══════════════════════════════════════════════════════
-// ГЭРЭЭНИЙ БҮХ ҮНЭЛГЭЭ
-// GET /api/contracts/:id/ratings
-// ══════════════════════════════════════════════════════
-const getContractRatings = async (req, res) => {
-  try {
-    const { id } = req.params
-
-    // Оролцогч мөн эсэх
-    const partRes = await query(
-      `SELECT 1 FROM contract_participants WHERE contract_id = $1 AND user_id = $2`,
-      [id, req.user.user_id]
-    )
-    if (!partRes.rows[0]) return res.status(403).json({ message: 'Харах эрх байхгүй' })
-
-    const result = await query(
-      `SELECT r.rating_id, r.rating, r.comment, r.created_at,
-              r.rater_id, r.rated_user_id,
-              rater.first_name  AS rater_first_name,
-              rater.last_name   AS rater_last_name,
-              rated.first_name  AS rated_first_name,
-              rated.last_name   AS rated_last_name
-       FROM user_ratings r
-       LEFT JOIN users rater ON rater.user_id = r.rater_id
-       LEFT JOIN users rated ON rated.user_id = r.rated_user_id
-       WHERE r.contract_id = $1
-       ORDER BY r.created_at DESC`,
-      [id]
-    )
-    res.json({ data: result.rows })
-  } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
-  }
-}
-
-// ══════════════════════════════════════════════════════
 // ӨӨРЧЛӨЛТИЙН ТҮҮХ (edit log)
 // GET /api/contracts/:id/edit-log
 // → contract_edit_log + edited_by-н user мэдээлэл, шинэ нь эхэнд
 // → Зөвхөн тухайн гэрээний оролцогч
-// ══════════════════════════════════════════════════════
 const getEditLog = async (req, res) => {
   try {
     const { id } = req.params
 
     // Оролцогч эсэх шалгах
-    const partRes = await query(
-      `SELECT 1 FROM contract_participants
-       WHERE contract_id = $1 AND user_id = $2`,
-      [id, req.user.user_id]
-    )
-    if (!partRes.rows[0]) return res.status(403).json({ message: 'Харах эрх байхгүй' })
+    if (!(await repo.isParticipant(id, req.user.user_id))) {
+      return res.status(403).json({ message: 'Харах эрх байхгүй' })
+    }
 
-    const result = await query(
-      `SELECT el.edit_id, el.contract_id, el.edited_by, el.changed_fields,
-              el.note, el.edited_at,
-              u.first_name, u.last_name,
-              cp.role AS editor_role
-       FROM contract_edit_log el
-       LEFT JOIN users u  ON u.user_id = el.edited_by
-       LEFT JOIN contract_participants cp
-         ON cp.contract_id = el.contract_id AND cp.user_id = el.edited_by
-       WHERE el.contract_id = $1
-       ORDER BY el.edited_at DESC`,
-      [id]
-    )
-    res.json({ data: result.rows })
+    const rows = await repo.findEditLog(id)
+    res.json({ data: rows })
   } catch (err) {
     console.error('getEditLog error:', err)
     res.status(400).json({ message: safeErrorMessage(err) })
   }
 }
 
-// ══════════════════════════════════════════════════════
-// ATTACHMENT — Гэрээний хавсралт материал (Cloudinary дээр)
-// ══════════════════════════════════════════════════════
-const { deleteFromCloudinary } = require('../utils/cloudinary')
-
-// Cloudinary resource_type-ийг mimetype-аас тогтооно.
-// PDF болон бүх зураг 'image' (Cloudinary PDF-ийг image-р render хийдэг).
-// Зөвхөн DOC/DOCX 'raw' болно.
-const resourceTypeFor = (mime) => {
-  if (!mime) return 'raw'
-  if (mime.startsWith('image/')) return 'image'
-  if (mime === 'application/pdf') return 'image'
-  return 'raw'
-}
-
-// POST /api/contracts/:id/attachments
-// multer-cloudinary middleware-ээр файл upload болсон → req.file
-//   req.file.path     = Cloudinary бүтэн URL
-//   req.file.filename = public_id
-//   req.file.mimetype, size
-const uploadAttachment = async (req, res) => {
-  try {
-    const { id } = req.params
-    if (!req.file) return res.status(400).json({ message: 'Файл оруулна уу' })
-
-    // Эрх шалгах: тухайн гэрээний оролцогч эсэх + гарын үсэг зурагдаагүй (LOCK)
-    const cRes = await query(
-      `SELECT c.contract_id, c.status, c.creator_id,
-              cp.participant_id, cp.role AS my_role
-       FROM contracts c
-       JOIN contract_participants cp
-         ON cp.contract_id = c.contract_id AND cp.user_id = $2
-       WHERE c.contract_id = $1`,
-      [id, req.user.user_id]
-    )
-    const contract = cRes.rows[0]
-    if (!contract) {
-      await deleteFromCloudinary(req.file.filename, resourceTypeFor(req.file.mimetype))
-      return res.status(404).json({ message: 'Гэрээ олдсонгүй эсвэл эрх байхгүй' })
-    }
-
-    // Lock check — гарын үсэг зурагдсан бол хавсралт нэмж болохгүй
-    const sigRes = await query(
-      `SELECT 1 FROM contract_signatures WHERE contract_id = $1 LIMIT 1`,
-      [id]
-    )
-    if (sigRes.rows[0]) {
-      await deleteFromCloudinary(req.file.filename, resourceTypeFor(req.file.mimetype))
-      return res.status(400).json({ message: 'Гарын үсэг зурагдсан гэрээнд хавсралт нэмж болохгүй' })
-    }
-
-    // sort_order — одоо байгаа бүх хавсралтын дараа
-    const orderRes = await query(
-      `SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order
-       FROM contract_attachments WHERE contract_id = $1`,
-      [id]
-    )
-    const nextOrder = orderRes.rows[0].next_order
-
-    const result = await query(
-      `INSERT INTO contract_attachments
-         (contract_id, uploaded_by, file_name, file_url, public_id,
-          file_type, file_size, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING attachment_id, file_name, file_url, file_type,
-                 file_size, sort_order, created_at, uploaded_by`,
-      [
-        id,
-        req.user.user_id,
-        req.file.originalname,
-        req.file.path,
-        req.file.filename,           // Cloudinary public_id
-        req.file.mimetype,
-        req.file.size,
-        nextOrder,
-      ]
-    )
-
-    await log({
-      user_id: req.user.user_id,
-      action: 'CONTRACT_ATTACHMENT_ADD',
-      entity_type: 'contract',
-      entity_id: id,
-      details: { file_name: req.file.originalname },
-      req,
-    })
-
-    res.status(201).json({ data: result.rows[0] })
-  } catch (err) {
-    console.error('uploadAttachment:', err)
-    if (req.file?.filename) {
-      await deleteFromCloudinary(req.file.filename, resourceTypeFor(req.file.mimetype))
-    }
-    res.status(400).json({ message: safeErrorMessage(err) })
-  }
-}
-
-// DELETE /api/contracts/:id/attachments/:attachmentId
-// Зөвхөн uploaded_by + lock-той (гарын үсэг зурагдаагүй) үед
-const deleteAttachment = async (req, res) => {
-  try {
-    const { id, attachmentId } = req.params
-
-    // Lock check
-    const sigRes = await query(
-      `SELECT 1 FROM contract_signatures WHERE contract_id = $1 LIMIT 1`,
-      [id]
-    )
-    if (sigRes.rows[0]) {
-      return res.status(400).json({ message: 'Гарын үсэг зурагдсан гэрээнээс хавсралт устгаж болохгүй' })
-    }
-
-    const attRes = await query(
-      `SELECT attachment_id, public_id, file_type, uploaded_by
-       FROM contract_attachments
-       WHERE attachment_id = $1 AND contract_id = $2`,
-      [attachmentId, id]
-    )
-    const att = attRes.rows[0]
-    if (!att) return res.status(404).json({ message: 'Хавсралт олдсонгүй' })
-    if (att.uploaded_by !== req.user.user_id) {
-      return res.status(403).json({ message: 'Зөвхөн оруулсан хүн өөрөө устгах эрхтэй' })
-    }
-
-    // Cloudinary-аас устгах
-    await deleteFromCloudinary(att.public_id, resourceTypeFor(att.file_type))
-
-    // DB-ээс устгах
-    await query(
-      `DELETE FROM contract_attachments WHERE attachment_id = $1`,
-      [attachmentId]
-    )
-
-    await log({
-      user_id: req.user.user_id,
-      action: 'CONTRACT_ATTACHMENT_DELETE',
-      entity_type: 'contract',
-      entity_id: id,
-      req,
-    })
-
-    res.json({ message: 'Хавсралт устгагдлаа' })
-  } catch (err) {
-    console.error('deleteAttachment:', err)
-    res.status(400).json({ message: safeErrorMessage(err) })
-  }
-}
-
 module.exports = {
-  getTemplates, getTemplateById,
   createContract, getMyContracts, getContractById,
   updateContract, sendContract,
   requestSignOtp, signContract,
   confirmContract, cancelContract, closeContract,
-  submitRating, getContractRatings,
   verifyInviteToken,
   fillCounterpartyData,
   returnContract,
   getEditLog,
-  uploadAttachment, deleteAttachment,
 }
