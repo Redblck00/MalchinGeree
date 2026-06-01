@@ -3,7 +3,7 @@
 # Docs: https://render.com/docs/blueprint-spec
 #
 # Энэ файл нь backend (Node web service) + PostgreSQL хоёрыг
-# нэг дор үүсгэнэ. Render dashboard → New + → Blueprint → repo сонгоно.
+# нэг дор үүсгэнэ. Render dashboard → New + → Blueprint → repo сонгоно
 #
 # Үлдсэн алхамууд (Render dashboard дотор):
 #   1. Sync хийсний дараа `malchingeree-api` service-н Environment tab-д
