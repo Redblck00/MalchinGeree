@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation'
 import useAuthStore from '@/app/store/authStore'
 import OtpVerify from '@/components/auth/OtpVerify'
 import Link from 'next/link'
+import { FiEye, FiEyeOff } from 'react-icons/fi'
 
 const requirements = [
   { label: '8+ тэмдэгт',     test: (p) => p.length >= 8 },
@@ -153,10 +154,11 @@ export default function RegisterForm() {
               onClick={() => setShowPassword(s => !s)}
               tabIndex={-1}
               className="absolute right-4 top-1/2 -translate-y-1/2 bg-transparent border-0
-                         cursor-pointer text-sm leading-none p-0 text-gray-400"
+                         cursor-pointer leading-none p-0 text-gray-400 hover:text-gray-600
+                         transition-colors inline-flex items-center justify-center"
               aria-label={showPassword ? 'Нуух' : 'Харах'}
             >
-              {showPassword ? '🙈' : '👁'}
+              {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
             </button>
           </div>
 
@@ -214,10 +216,11 @@ export default function RegisterForm() {
               onClick={() => setShowConfirm(s => !s)}
               tabIndex={-1}
               className="absolute right-4 top-1/2 -translate-y-1/2 bg-transparent border-0
-                         cursor-pointer text-sm leading-none p-0 text-gray-400"
+                         cursor-pointer leading-none p-0 text-gray-400 hover:text-gray-600
+                         transition-colors inline-flex items-center justify-center"
               aria-label={showConfirm ? 'Нуух' : 'Харах'}
             >
-              {showConfirm ? '🙈' : '👁'}
+              {showConfirm ? <FiEyeOff size={18} /> : <FiEye size={18} />}
             </button>
           </div>
           {passwordMismatch && (

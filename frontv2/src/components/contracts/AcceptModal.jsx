@@ -27,7 +27,7 @@ export default function AcceptModal({
       onClick={onCancel}
     >
       <div
-        className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl"
+        className="bg-white  max-w-md w-full p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-3 mb-4">

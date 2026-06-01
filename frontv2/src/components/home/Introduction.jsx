@@ -126,7 +126,7 @@ function AboutSection() {
                 <div className="w-28 h-28 bg-white/20 backdrop-blur-sm rounded-full
                                 flex items-center justify-center border border-white/30 p-3">
                   <Image
-                    src="/home/systemIcon.png"
+                    src="/systemIcon.png"
                     alt="МалчныГэрээ"
                     width={88}
                     height={88}

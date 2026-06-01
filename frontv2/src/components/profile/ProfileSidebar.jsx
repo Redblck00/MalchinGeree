@@ -55,6 +55,9 @@ export default function ProfileSidebar({
   profile,
   ratings,
   onProfileUpdated,
+  // bare=true → bg/rounded/sticky/width хасагдсан "inline" хувилбар.
+  // Profile page-ийн зүүн талын scrollable column-д ашиглана.
+  bare = false,
 }) {
   const { setUser } = useAuthStore()
   const fileInputRef = useRef(null)
@@ -148,14 +151,17 @@ export default function ProfileSidebar({
   const ratingAvg = ratings?.summary?.rating_avg || 0
   const ratingCnt = ratings?.summary?.rating_count || 0
 
+  // bare режимд: цайвар цагаан no bg, no rounded, no fixed width — parent
+  // нь scroll-ийг хариуцна. Default режим: хуучны emerald gradient aside.
+  const wrapperClassName = bare
+    ? 'w-full flex flex-col px-2 py-2'
+    : 'w-90 h-screen flex flex-col sticky top-0 shrink-0 overflow-y-auto no-scrollbar rounded-tl-[40px] rounded-bl-[40px] px-6 py-7'
+  const wrapperStyle = bare
+    ? undefined
+    : { background: 'linear-gradient(to bottom, #C8FAE4 25%, #9CF5D3 100%)' }
+
   return (
-    <aside
-      className="w-90 h-screen flex flex-col sticky top-0 shrink-0 overflow-y-auto no-scrollbar
-                 rounded-tl-[40px] rounded-bl-[40px] px-6 py-7"
-      style={{
-        background: 'linear-gradient(to bottom, #C8FAE4 25%, #9CF5D3 100%)',
-      }}
-    >
+    <aside className={wrapperClassName} style={wrapperStyle}>
       {/* Avatar */}
       <div className="flex justify-center">
         <div className="relative">

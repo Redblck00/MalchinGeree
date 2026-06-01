@@ -2,24 +2,20 @@
 import { useRouter } from 'next/navigation'
 import {
   MdArrowBack, MdPictureAsPdf, MdDescription,
-  MdPrint, MdEdit, MdStar, MdHistory, MdCancel,
+  MdEdit, MdStar, MdHistory, MdCancel,
 } from 'react-icons/md'
 import StatusBadge from './StatusBadge'
 
 // ══════════════════════════════════════════════════════════════
-// ContractHeader — Дэлгэрэнгүйн дээд header
+// ContractHeader — 2 эгнээтэй layout
 //
-//   ← Буцах | Гэрээнүүд > NUMBER | [Status] | date · автоматаар хадгалагдсан
-//                                                  [PDF] [Word] [Хэвлэх] [Засах]
+// Row 1: ← Буцах | Гэрээнүүд › NUMBER | [Status]            YYYY.MM.DD
+// Row 2: [PDF] [Word] [Түүх]              [Өөрчлөх] [Үнэлэх] [Цуцлах]
 //
-// Props:
-//   contract        full contract object
-//   onEdit          () => void (Edit товч даргад дуудна — DRAFT/SENT-d л идэвхтэй)
-//   onPdf           () => Promise
-//   onDocx          () => Promise
-//   onPrint         () => void
-//   downloadBusy    'pdf'|'docx'|'print'|null
-//   canEdit         boolean
+// • Row 2-н зүүн талд document export action-ууд, баруун талд
+//   contract-state action-ууд. Идэвхгүй (inapplicable) action товч
+//   автоматаар нуугдана (disabled state биш — render хийгдэхгүй).
+// • Бүгд hide бол row 2 бүхэлдээ render-гүй.
 // ══════════════════════════════════════════════════════════════
 export default function ContractHeader({
   contract,
@@ -41,36 +37,32 @@ export default function ContractHeader({
   const updatedAt = contract.updated_at
     ? new Date(contract.updated_at)
     : null
-
   const dateLine = updatedAt
-    ? `${updatedAt.getFullYear()}.${String(updatedAt.getMonth()+1).padStart(2,'0')}.${String(updatedAt.getDate()).padStart(2,'0')}`
+    ? `${updatedAt.getFullYear()}.${String(updatedAt.getMonth() + 1).padStart(2, '0')}.${String(updatedAt.getDate()).padStart(2, '0')}`
     : ''
   const timeLine = updatedAt
-    ? ` ${String(updatedAt.getHours()).padStart(2,'0')}:${String(updatedAt.getMinutes()).padStart(2,'0')}`
+    ? `${String(updatedAt.getHours()).padStart(2, '0')}:${String(updatedAt.getMinutes()).padStart(2, '0')}`
     : ''
+
+  // Action availability — товч render хийгдэх эсэх
+  const hasLeftActions  = !!onPdf || !!onDocx || !!onHistory
+  const hasRightActions = canEdit || canRate || canCancel
+  const showActionBar   = hasLeftActions || hasRightActions
 
   return (
     <header className="bg-white border-b border-gray-100 shrink-0 print:hidden">
-      <div className="px-6 py-3 flex items-center gap-4 flex-wrap">
-        {/* Зүүн тал — back + breadcrumb + status */}
+      {/* ── Row 1: navigation + identity ─────────────────── */}
+      <div className="px-6 py-3 flex items-center gap-4">
         <button
           onClick={() => router.push('/dashboard/contracts')}
           className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-700
                      border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer bg-white"
         >
-          <MdArrowBack size={16} /> Буцах
+          <MdArrowBack size={16} /> Гэрээнүүд
         </button>
 
-        <div className="flex items-center gap-2 text-sm">
-          <button
-            onClick={() => router.push('/dashboard/contracts')}
-            className="text-gray-500 hover:text-gray-900 bg-transparent border-0
-                       cursor-pointer p-0"
-          >
-            Гэрээнүүд
-          </button>
-          <span className="text-gray-300">›</span>
-          <span className="font-semibold text-gray-900">
+        <div className="flex items-center gap-2 text-sm min-w-0">
+          <span className="font-semibold text-gray-900 truncate">
             {contract.contract_number}
           </span>
         </div>
@@ -78,93 +70,133 @@ export default function ContractHeader({
         <StatusBadge status={contract.status} />
 
         {dateLine && (
-          <div className="text-xs text-gray-500 hidden md:block">
+          <div className="ml-auto text-xs text-gray-500 hidden md:block">
             {dateLine} <span className="text-gray-400">· {timeLine}</span>
           </div>
         )}
-
-        {/* Баруун тал — action товчнууд */}
-        <div className="ml-auto flex items-center gap-2">
-          <ActionButton
-            icon={<MdPictureAsPdf size={16} />}
-            label="PDF"
-            onClick={onPdf}
-            busy={downloadBusy === 'pdf'}
-            disabled={downloadBusy !== null}
-          />
-          <ActionButton
-            icon={<MdDescription size={16} />}
-            label="Word"
-            onClick={onDocx}
-            busy={downloadBusy === 'docx'}
-            disabled={downloadBusy !== null}
-          />
-          {/* <ActionButton
-            icon={<MdPrint size={16} />}
-            label="Хэвлэх"
-            onClick={onPrint}
-            busy={downloadBusy === 'print'}
-            disabled={downloadBusy !== null}
-          /> */}
-          {onHistory && (
-            <button
-              onClick={onHistory}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold
-                         text-[#3d3a8c] border border-[#3d3a8c]/30 rounded-lg
-                         hover:bg-[#3d3a8c]/5 cursor-pointer bg-white"
-              title="Өөрчлөлтийн түүх / тайлбар"
-            >
-              <MdHistory size={16} /> Түүх
-            </button>
-          )}
-          {canEdit && (
-            <button
-              onClick={onEdit}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold
-                         text-white bg-gray-900 rounded-lg hover:bg-gray-800
-                         cursor-pointer border-0"
-            >
-              <MdEdit size={16} /> Засах
-            </button>
-          )}
-          {canRate && (
-            <button
-              onClick={onRate}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold
-                         text-white bg-yellow-500 hover:bg-yellow-600 rounded-lg
-                         cursor-pointer border-0"
-            >
-              <MdStar size={16} /> {hasRated ? 'Үнэлгээ засах' : 'Үнэлэх'}
-            </button>
-          )}
-          {canCancel && (
-            <button
-              onClick={onCancel}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold
-                         text-red-600 border border-red-200 rounded-lg
-                         hover:bg-red-50 cursor-pointer bg-white"
-              title="Гэрээг цуцлах"
-            >
-              <MdCancel size={16} /> Цуцлах
-            </button>
-          )}
-        </div>
       </div>
+
+      {/* ── Row 2: action bar (responsive) ────────────────
+          Desktop (sm+): icon + label
+          Mobile (<sm):  icon-only (label-уудыг title/aria-label-аар хадгална)
+          flex-wrap нь wide overflow тохиолдолд автоматаар 2 мөр болгоно.
+          Right group ml-auto-той тул нэг мөрөнд барууну тал руу шахагдана. */}
+      {showActionBar && (
+        <div className="px-4 sm:px-6 py-2 border-t border-gray-50">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+            {/* Зүүн талын бүлэг — utility action-ууд */}
+            {onPdf && (
+              <ActionButton
+                icon={<MdPictureAsPdf size={16} />}
+                label="PDF"
+                onClick={onPdf}
+                busy={downloadBusy === 'pdf'}
+                disabled={downloadBusy !== null}
+              />
+            )}
+            {onDocx && (
+              <ActionButton
+                icon={<MdDescription size={16} />}
+                label="Word"
+                onClick={onDocx}
+                busy={downloadBusy === 'docx'}
+                disabled={downloadBusy !== null}
+              />
+            )}
+            {onHistory && (
+              <IconLabelButton
+                onClick={onHistory}
+                icon={<MdHistory size={16} />}
+                label="Түүх"
+                title="Өөрчлөлтийн түүх / тайлбар"
+                variant="indigo"
+              />
+            )}
+
+            {/* Баруун талын бүлэг — contract-state action-ууд.
+                ml-auto эхний flex item-ийн дараа байгаа тул баруун талд шахагдана.
+                Wrap болсон үед ч баруун-align-тай үлдэнэ. */}
+            {hasRightActions && (
+              <div className="ml-auto flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                {canEdit && (
+                  <IconLabelButton
+                    onClick={onEdit}
+                    icon={<MdEdit size={16} />}
+                    label="Өөрчлөх"
+                    title="Өөрчлөх"
+                    variant="primary"
+                  />
+                )}
+                {canRate && (
+                  <IconLabelButton
+                    onClick={onRate}
+                    icon={<MdStar size={16} />}
+                    label={hasRated ? 'Үнэлгээ засах' : 'Үнэлэх'}
+                    title={hasRated ? 'Үнэлгээ засах' : 'Үнэлэх'}
+                    variant="warning"
+                  />
+                )}
+                {canCancel && (
+                  <IconLabelButton
+                    onClick={onCancel}
+                    icon={<MdCancel size={16} />}
+                    label="Цуцлах"
+                    title="Гэрээг цуцлах"
+                    variant="danger"
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   )
 }
 
+// ── Action button: PDF/Word — busy төлөвт "..." text-аар солигдоно ──
 function ActionButton({ icon, label, onClick, busy, disabled }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700
+      aria-label={label}
+      title={label}
+      className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-sm text-gray-700
                  border border-gray-200 rounded-lg hover:bg-gray-50
                  cursor-pointer bg-white disabled:opacity-50 disabled:cursor-not-allowed"
     >
+      {busy ? (
+        <span className="text-xs font-bold w-4 text-center">...</span>
+      ) : (
+        <>
+          {icon}
+          <span className="hidden sm:inline">{label}</span>
+        </>
+      )}
+    </button>
+  )
+}
+
+// ── Icon + label button (responsive label hide). Variant-аар theme солино ──
+function IconLabelButton({ icon, label, onClick, title, variant = 'default' }) {
+  const variants = {
+    default: 'text-gray-700 border border-gray-200 bg-white hover:bg-gray-50',
+    indigo:  'text-[#3d3a8c] border border-[#3d3a8c]/30 bg-white hover:bg-[#3d3a8c]/5 font-semibold',
+    primary: 'text-white bg-gray-900 hover:bg-gray-800 border-0 font-semibold',
+    warning: 'text-white bg-yellow-500 hover:bg-yellow-600 border-0 font-semibold',
+    danger:  'text-red-600 border border-red-200 bg-white hover:bg-red-50 font-semibold',
+  }
+  return (
+    <button
+      onClick={onClick}
+      title={title || label}
+      aria-label={label}
+      className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-sm rounded-lg
+                  cursor-pointer transition-colors ${variants[variant]}`}
+    >
       {icon}
-      <span>{busy ? '...' : label}</span>
+      <span className="hidden sm:inline">{label}</span>
     </button>
   )
 }

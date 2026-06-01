@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import useAuthStore from '@/app/store/authStore'
 import Link from 'next/link'
+import { FiEye, FiEyeOff } from 'react-icons/fi'
 
 export default function LoginForm({ onSuccess }) {
   const { login, authLoading, authError, clearError } = useAuthStore()
@@ -95,10 +96,11 @@ export default function LoginForm({ onSuccess }) {
               onClick={() => setShowPassword(s => !s)}
               tabIndex={-1}
               className="absolute right-4 top-1/2 -translate-y-1/2 bg-transparent border-0
-                         cursor-pointer text-sm leading-none p-0 text-gray-400"
+                         cursor-pointer leading-none p-0 text-gray-400 hover:text-gray-600
+                         transition-colors inline-flex items-center justify-center"
               aria-label={showPassword ? 'Нуух' : 'Харах'}
             >
-              {showPassword ? '🙈' : '👁'}
+              {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
             </button>
           </div>
         </div>

@@ -19,15 +19,16 @@ export default function RoleSelectModal({ template, onClose, onSelect }) {
   return (
     <div
       className="fixed inset-0 bg-emerald-950/50 backdrop-blur-sm z-50
-                 flex items-center justify-center p-4 animate-in fade-in duration-200"
+                 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="relative bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden"
+        className="relative bg-white rounded-t-2xl sm:rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden
+                    max-h-[92dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── HEADER with emerald accent ─────────────────── */}
-        <div className="relative px-6 pt-6 pb-5
+        <div className="relative px-4 sm:px-6 pt-5 sm:pt-6 pb-4 sm:pb-5
                         bg-linear-to-br from-emerald-50 to-emerald-100/60
                         border-b border-emerald-100 overflow-hidden">
           {/* Decorative circles */}
@@ -66,12 +67,12 @@ export default function RoleSelectModal({ template, onClose, onSelect }) {
         </div>
 
         {/* ── BODY — role options ───────────────────────── */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           <p className="text-xs text-gray-500 uppercase tracking-widest font-semibold m-0 mb-3">
             Үүргээ сонгоно уу
           </p>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-3">
             <RoleOption
               selected={role === 'seller'}
               onClick={() => setRole('seller')}
@@ -124,7 +125,7 @@ function RoleOption({ selected, onClick, icon, title, subtitle }) {
   return (
     <button
       onClick={onClick}
-      className={`relative overflow-hidden p-5 rounded-2xl border-2
+      className={`relative overflow-hidden p-4 sm:p-5 rounded-2xl border-2
                   flex flex-col items-center gap-2 transition-all
                   cursor-pointer text-center
                   ${selected

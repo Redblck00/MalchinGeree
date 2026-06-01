@@ -17,7 +17,7 @@ const Footer = () => {
               <div className="w-10 h-10 rounded-xl bg-linear-to-br from-emerald-400 to-emerald-700
                               flex items-center justify-center p-1.5 shadow-sm">
                 <Image
-                  src="/home/systemIcon.png"
+                  src="/systemIcon.png"
                   alt="МалчныГэрээ"
                   width={32}
                   height={32}

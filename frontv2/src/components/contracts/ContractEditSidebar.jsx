@@ -4,7 +4,8 @@ import {
   MdEdit, MdSend, MdSave, MdArrowBack, MdNote,
   MdCheckCircle, MdInfoOutline, MdAdd, MdClose,
 } from 'react-icons/md'
-import CONTRACT_FIELDS from '@/lib/contractFields'
+import CONTRACT_FIELDS, { LIVESTOCK_TYPES } from '@/lib/contractFields'
+import { REGISTER_LETTERS } from '@/lib/registerLetters'
 import ChangeLog from './ChangeLog'
 
 // ─────────────────────────────────────────────────────────────
@@ -46,6 +47,55 @@ function setNested(obj, key, value) {
 
 const SYSTEM_ONLY_KEYS = ['contract_number', 'year', 'month', 'day']
 
+// Профайлаас авто-бөглөгддөг seller/buyer дэд талбарууд (register үүнд ОРОХГҮЙ — гараар)
+const AUTO_FILL_PROFILE_KEYS = ['name', 'phone', 'email', 'address']
+
+// Регистр: 2 крил үсэг + 8 оронтой тоо (жишээ: УБ12345678)
+const REGISTER_RE = /^[А-ЯӨҮЁ]{2}\d{8}$/
+
+// ─────────────────────────────────────────────────────────────
+// Регистрийн компакт composite input — 2 үсэг select + 8 оронтой тоо
+// Утга нэг мөр болж хадгалагдана (жишээ: "УБ12345678")
+// ─────────────────────────────────────────────────────────────
+function CompactRegisterInput({ value, onChange, disabled }) {
+  const m       = (value || '').match(/^([^\d]{0,2})(\d{0,8})/) || ['', '', '']
+  const l1      = m[1][0] || ''
+  const l2      = m[1][1] || ''
+  const digits  = m[2] || ''
+  const invalid = !!value && !REGISTER_RE.test(value)
+  const emit    = (nl1, nl2, nd) => onChange(`${nl1}${nl2}${nd}`)
+
+  const ctl = `px-2 py-1.5 text-sm rounded-md outline-none border
+               ${disabled
+                 ? 'bg-gray-50 border-gray-200 text-gray-500'
+                 : 'bg-white border-gray-200 text-gray-900 focus:border-[#3d3a8c] focus:ring-1 focus:ring-[#3d3a8c]/30'}`
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-1.5">
+        <select value={l1} onChange={e => emit(e.target.value, l2, digits)}
+                disabled={disabled} className={ctl + ' shrink-0'}>
+          <option value="">—</option>
+          {REGISTER_LETTERS.map(L => <option key={L} value={L}>{L}</option>)}
+        </select>
+        <select value={l2} onChange={e => emit(l1, e.target.value, digits)}
+                disabled={disabled} className={ctl + ' shrink-0'}>
+          <option value="">—</option>
+          {REGISTER_LETTERS.map(L => <option key={L} value={L}>{L}</option>)}
+        </select>
+        <input type="text" inputMode="numeric" maxLength={8} placeholder="12345678"
+               value={digits}
+               onChange={e => emit(l1, l2, e.target.value.replace(/\D/g, '').slice(0, 8))}
+               disabled={disabled}
+               className={`flex-1 min-w-0 tracking-widest ${ctl} ${invalid ? 'border-red-300 bg-red-50 text-red-700' : ''}`} />
+      </div>
+      {invalid && (
+        <p className="text-[10px] text-red-500 m-0">2 үсэг + 8 оронтой тоо</p>
+      )}
+    </div>
+  )
+}
+
 // ─────────────────────────────────────────────────────────────
 // Компакт хэлбэрийн нэг field
 // ─────────────────────────────────────────────────────────────
@@ -65,7 +115,9 @@ function CompactField({ field, value, onChange, disabled }) {
                            bg-indigo-50 text-[#3d3a8c] px-1 py-0.5 rounded">авто</span>
         )}
       </label>
-      {field.type === 'textarea' ? (
+      {field.type === 'register' ? (
+        <CompactRegisterInput value={value} onChange={onChange} disabled={disabled} />
+      ) : field.type === 'textarea' ? (
         <textarea
           value={value || ''}
           onChange={e => onChange(e.target.value)}
@@ -103,7 +155,7 @@ function LivestockMiniRow({ item, idx, onUpdate, onRemove }) {
   return (
     <div className="border border-gray-200 rounded-md p-2 bg-gray-50">
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[10px] font-bold uppercase text-gray-500">
+        <span className="text-[10px] font-bold uppercase text-green-900">
           Мал #{idx + 1}
         </span>
         <button type="button" onClick={() => onRemove(idx)}
@@ -112,22 +164,30 @@ function LivestockMiniRow({ item, idx, onUpdate, onRemove }) {
           <MdClose size={12} />
         </button>
       </div>
-      <div className="grid grid-cols-3 gap-1.5">
-        <input type="text" placeholder="Төрөл"
-               value={item.livestock_type || ''}
-               onChange={e => onUpdate(idx, 'livestock_type', e.target.value)}
-               className="px-2 py-1 text-xs border border-gray-200 rounded outline-none
-                          focus:border-[#3d3a8c] bg-white" />
+      <div className="grid grid-cols-2 gap-1.5">
+        <select
+          value={item.livestock_type || ''}
+          onChange={e => onUpdate(idx, 'livestock_type', e.target.value)}
+          className="px-2 py-1  text-xs border border-gray-200 rounded outline-none
+                     focus:border-[#3d3a8c] bg-white text-gray-700 placeholder:text-gray-400">
+          <option value="">Төрөл</option>
+          {LIVESTOCK_TYPES.map(t => <option className="text-gray-700" key={t} value={t}>{t}</option>)}
+        </select>
         <input type="number" placeholder="Тоо"
                value={item.count || ''}
                onChange={e => onUpdate(idx, 'count', e.target.value)}
-               className="px-2 py-1 text-xs border border-gray-200 rounded outline-none
-                          focus:border-[#3d3a8c] bg-white" />
+               className="px-2 py-1 text-xs text-gray-700 border border-gray-200 rounded outline-none
+                          focus:border-[#3d3a8c] bg-white placeholder:text-gray-400" />
+        <input type="number" placeholder="Жин (кг)"
+               value={item.weight || ''}
+               onChange={e => onUpdate(idx, 'weight', e.target.value)}
+               className="px-2 py-1 text-xs text-gray-700  border border-gray-200 rounded outline-none
+                          focus:border-[#3d3a8c] bg-white placeholder:text-gray-400" />
         <input type="number" placeholder="Нэгж үнэ"
                value={item.price_per_unit || ''}
                onChange={e => onUpdate(idx, 'price_per_unit', e.target.value)}
-               className="px-2 py-1 text-xs border border-gray-200 rounded outline-none
-                          focus:border-[#3d3a8c] bg-white" />
+               className="px-2 py-1 text-xs text-gray-700 border border-gray-200 rounded outline-none
+                          focus:border-[#3d3a8c] bg-white placeholder:text-gray-400" />
       </div>
     </div>
   )
@@ -203,7 +263,10 @@ export default function ContractEditSidebar({
 
   // Тухайн талбар auto-fill (өөрийн талын мэдээлэл) эсэх
   const isAutoFill = (key) => {
-    if (key.startsWith(`${myRoleKey}.`)) return true
+    // Зөвхөн профайлаас бөглөгддөг талбарууд disabled. Регистр гараар бөглөнө.
+    if (key.startsWith(`${myRoleKey}.`)) {
+      return AUTO_FILL_PROFILE_KEYS.includes(key.split('.')[1])
+    }
     if (key === 'payment.total_amount' && hasLivestockArray) return true
     return false
   }
@@ -224,7 +287,7 @@ export default function ContractEditSidebar({
         f.type !== 'each_start' &&
         f.type !== 'each_end' &&
         !SYSTEM_ONLY_KEYS.includes(f.key) &&
-        !['livestock_type', 'count', 'price_per_unit'].includes(f.key)
+        !['livestock_type', 'count', 'weight', 'price_per_unit'].includes(f.key)
       )
       const showLivestock = hasLivestockArray &&
         group.fields.some(f => f.key === '#each livestock')
@@ -309,14 +372,14 @@ export default function ContractEditSidebar({
               <MdEdit size={16} className="text-[#3d3a8c]" /> Гэрээ засварлах
             </h2>
             <button type="button" onClick={onCancel}
-                    className="text-xs text-gray-500 hover:text-gray-900
+                    className="text-sm text-gray-500 hover:text-gray-900
                                inline-flex items-center gap-0.5 cursor-pointer
                                bg-transparent border-0 p-0">
               <MdArrowBack size={12} /> Гарах
             </button>
           </div>
-          <p className="text-[11px] text-gray-500 m-0 mt-1">
-            Талбаруудыг засаад "Хадгалах" дарна уу. Нөгөө талд автоматаар илгээгдэхгүй.
+          <p className="text-[12px] text-gray-500 m-0 mt-1">
+            Талбаруудыг засаад "Хадгалах" дарна уу
           </p>
         </div>
 
@@ -353,9 +416,9 @@ export default function ContractEditSidebar({
                       type="button"
                       onClick={addLivestock}
                       className="self-start inline-flex items-center gap-1 px-2 py-1
-                                 text-[11px] font-semibold text-[#3d3a8c]
+                                 text-[11px] font-semibold 
                                  border border-[#3d3a8c]/30 rounded
-                                 hover:bg-[#3d3a8c]/5 cursor-pointer bg-white"
+                                 hover:bg-[#3d3a8c]/5 text-green-900 cursor-pointer bg-white"
                     >
                       <MdAdd size={12} /> Мал нэмэх
                     </button>
@@ -381,13 +444,13 @@ export default function ContractEditSidebar({
             disabled={saving}
             className="w-full inline-flex items-center justify-center gap-1.5
                        px-4 py-2.5 text-sm font-semibold text-white
-                       bg-[#3d3a8c] hover:bg-[#2d2a6e] rounded-lg cursor-pointer border-0
+                       bg-emerald-600 hover:bg-emerald-700 rounded-lg cursor-pointer border-0
                        disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <MdSave size={14} /> {saving ? 'Хадгалж байна...' : 'Хадгалах'}
           </button>
           <p className="text-[10px] text-gray-400 text-center m-0 mt-2">
-            Хадгалсны дараа нөгөө талд илгээх боломжтой
+            Хадгалсны дараа Харилцагчид илгээх боломжтой
           </p>
         </div>
       </div>
@@ -403,7 +466,7 @@ export default function ContractEditSidebar({
       <div className="p-4 border-b border-gray-100 shrink-0">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-bold text-gray-900 m-0 inline-flex items-center gap-1.5">
-            <MdSend size={16} className="text-emerald-600" /> Нөгөө талд илгээх
+            <MdSend size={16} className="text-emerald-600" /> Харилцагчид илгээх
           </h2>
           <button type="button" onClick={() => setMode('EDIT')}
                   className="text-xs text-gray-500 hover:text-gray-900
@@ -434,12 +497,12 @@ export default function ContractEditSidebar({
             placeholder="Жишээ: Хугацааг 6 сар → 1 жил болгох санал..."
             className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg
                        outline-none focus:border-[#3d3a8c] focus:ring-1 focus:ring-[#3d3a8c]/30
-                       bg-white resize-none"
+                       bg-white resize-none text-gray-700 placeholder:text-gray-400"
           />
           <div className="flex items-center justify-between text-[10px] text-gray-400">
-            <span className="inline-flex items-center gap-1">
+            <span className="inline-flex items-center gap-1 ">
               <MdInfoOutline size={11} />
-              Нөгөө тал email + мэдэгдэлд харна
+              Харилцагч email ,мэдэгдэлд харна
             </span>
             <span>{note.length}/1000</span>
           </div>

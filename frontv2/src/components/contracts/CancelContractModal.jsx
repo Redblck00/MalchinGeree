@@ -74,8 +74,8 @@ export default function CancelContractModal({
         <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4">
           <p className="text-xs text-red-900 m-0 leading-relaxed">
             <strong>Анхаар:</strong> Цуцалсан гэрээг сэргээх боломжгүй.
-            Нөгөө талд автоматаар мэдэгдэнэ.
-            Хэрэв нөгөө тал зэрэгцээ гарын үсэг зурсан бол цуцлах боломжгүй болж магадгүй.
+            харилцагчид мэдэгдэнэ.
+            Хэрэв харилцагчид  гарын үсэг зурсан бол цуцлах боломжгүй.
           </p>
         </div>
 

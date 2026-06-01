@@ -112,20 +112,19 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
   return (
     <div
       className="fixed inset-0 bg-emerald-950/60 backdrop-blur-sm z-50
-                 flex items-center justify-center p-4
+                 flex items-end sm:items-center justify-center p-0 sm:p-4
                  animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="bg-white w-full rounded-3xl shadow-2xl overflow-hidden flex flex-col relative
-                   ring-1 ring-emerald-900/10"
-        style={{ maxWidth: '1000px', height: '90vh' }}
+        className="bg-white w-full sm:max-w-[1000px] rounded-t-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col relative
+                   ring-1 ring-emerald-900/10 h-[96dvh] sm:h-[90vh] max-h-[96dvh]"
         onClick={e => e.stopPropagation()}
       >
         {/* ── Close button ─────────────────────────────── */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-20 w-9 h-9 flex items-center justify-center
+          className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 w-9 h-9 flex items-center justify-center
                      rounded-xl bg-white/90 hover:bg-emerald-50 text-gray-500
                      hover:text-emerald-700 border border-gray-200 hover:border-emerald-200
                      cursor-pointer shadow-sm transition-colors"
@@ -140,17 +139,17 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
                             rounded-full animate-spin" />
           </div>
         ) : (
-          <div className="flex flex-1 overflow-hidden">
+          <div className="flex flex-1 overflow-hidden flex-col lg:flex-row min-h-0">
 
             {/* ── LEFT — A4 preview (inline pagination) ── */}
-            <div className="flex flex-col bg-gray-100 border-r border-gray-200"
-                 style={{ width: '58%' }}>
+            <div className="flex flex-col bg-gray-100 border-b lg:border-b-0 lg:border-r border-gray-200
+                            w-full lg:w-[58%] min-h-[42vh] sm:min-h-[45vh] lg:min-h-0 shrink-0 lg:shrink">
 
               {/* Scrollable workspace */}
               <div
                 ref={scrollRef}
                 className="flex-1 overflow-auto bg-linear-to-br from-gray-200/60 to-gray-300/40
-                           py-6 px-4 relative"
+                           py-4 sm:py-6 px-2 sm:px-4 relative min-h-0"
               >
                 {/* Hidden measure div — бүх агуулгыг A4 өргөнтэй ижил хэмжээтэй
                     container-д рендер хийж scrollHeight уншина */}
@@ -185,7 +184,7 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
               </div>
 
               {/* Bottom toolbar — page nav + zoom */}
-              <div className="flex items-center justify-between px-5 py-3
+              <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 sm:py-3
                               bg-linear-to-r from-emerald-900 to-emerald-950
                               text-white text-sm shrink-0">
                 <div className="flex items-center gap-2">
@@ -243,8 +242,8 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
             </div>
 
             {/* ── RIGHT — Info + action ─────────────────── */}
-            <div className="relative flex flex-col px-8 py-8 bg-white overflow-hidden"
-                 style={{ width: '42%' }}>
+            <div className="relative flex flex-col px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 bg-white overflow-hidden
+                            w-full lg:w-[42%] flex-1 min-h-0">
 
               {/* Subtle decorative blobs */}
               <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full
@@ -252,7 +251,7 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
               <div className="absolute -left-8 -bottom-12 w-32 h-32 rounded-full
                               bg-emerald-100/40 pointer-events-none" />
 
-              <div className="relative flex flex-col gap-5 flex-1 overflow-y-auto pr-2 no-scrollbar">
+              <div className="relative flex flex-col gap-3 sm:gap-5 flex-1 overflow-y-auto pr-1 sm:pr-2 no-scrollbar min-h-0">
                 {/* Badge */}
                 {template.is_standard ? (
                   <span className="w-fit inline-flex items-center gap-1.5
@@ -272,7 +271,7 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
                 )}
 
                 {/* Title */}
-                <h2 className="text-2xl lg:text-3xl font-extrabold text-gray-900 leading-tight m-0">
+                <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-gray-900 leading-tight m-0 pr-10">
                   {template.name}
                 </h2>
 
@@ -334,7 +333,7 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
               </div>
 
               {/* Footer actions: Хаах + Ашиглах */}
-              <div className="relative pt-4 mt-4 border-t border-gray-100 flex gap-2">
+              <div className="relative pt-3 sm:pt-4 mt-3 sm:mt-4 border-t border-gray-100 flex flex-col sm:flex-row gap-2 shrink-0">
                 <button
                   onClick={onClose}
                   className="flex-1 py-3 px-4 text-sm font-semibold

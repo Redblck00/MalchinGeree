@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Forum } from "next/font/google";
 import "./globals.css";
+import Navbar from "@/components/layout/Navbar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,7 +34,12 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${forum.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-white">{children}</body>
+      <body className="min-h-full flex flex-col bg-white">
+        {/* Navbar — бүх public хуудаст тогтмол; dashboard/admin route-уудад
+            өөрөө null буцаадаг (Navbar.jsx HIDDEN_PREFIXES үз). */}
+        <Navbar />
+        {children}
+      </body>
     </html>
   );
 }

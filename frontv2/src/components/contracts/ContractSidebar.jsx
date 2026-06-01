@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import SignatureModal from '@/components/signature/SignatureModal'
 import AcceptModal from '@/components/contracts/AcceptModal'
+import AddParticipantModal from '@/components/contracts/AddParticipantModal'
 import ChangeLog from '@/components/contracts/ChangeLog'
 import {
   MdCheckCircle, MdSend, MdEdit, MdAttachFile,
@@ -34,7 +35,6 @@ function MiniRating({ avg = 0, count = 0 }) {
     </span>
   )
 }
-
 // ── Том star row (детайл хэсэгт) ──
 function StarRow({ avg = 0, count = 0 }) {
   const rounded = Math.round(avg)
@@ -43,7 +43,7 @@ function StarRow({ avg = 0, count = 0 }) {
       <div className="flex items-center gap-0.5">
         {Array.from({ length: 5 }, (_, i) =>
           i < rounded
-            ? <MdStar key={i} size={14} className="text-amber-400" />
+            ? <MdStar key={i} size={14} className="text-amber-300" />
             : <MdStarBorder key={i} size={14} className="text-gray-300" />
         )}
       </div>
@@ -55,17 +55,13 @@ function StarRow({ avg = 0, count = 0 }) {
     </div>
   )
 }
-
-// ══════════════════════════════════════════════════════════════
-// ContractSidebar — Tabbed sidebar (Талууд / Хавсралт / Гарын үсэг)
-// ══════════════════════════════════════════════════════════════
 const ROLE_LABEL = {
   CREATOR:      'Үүсгэгч',
   COUNTERPARTY: 'Гэрээнд оролцогч',
   WITNESS:      'Гэрч',
 }
 
-// Гэрээний creator_role-аас seller/buyer метаданныг (харагдах role label)
+// Гэрээний creator_role-аас seller/buyer (харагдах role label)
 function getRoleLabel(participant, creatorRole) {
   if (participant.role === 'CREATOR') {
     return creatorRole === 'seller' ? 'Худалдагч' : 'Худалдан авагч'
@@ -328,7 +324,7 @@ function AttachmentsTab({
         <div className="border-2 border-dashed border-[#ece8df] rounded-xl py-4
                         flex flex-col items-center gap-1 text-center bg-gray-50">
           <p className="text-xs text-gray-500 m-0">
-            🔒 Гарын үсэг зурагдсан учир хавсралт нэмэх боломжгүй
+             Гарын үсэг зурагдсан учир хавсралт нэмэх боломжгүй
           </p>
         </div>
       ) : (
@@ -460,7 +456,7 @@ function SignatureCard({
           {savedSignature ? (
             <button
               onClick={onSignClick}
-              className="w-full bg-white rounded-lg p-3 flex items-center justify-center
+              className="w-full bg-white rounded-sm p-3 flex items-center justify-center
                          min-h-20 cursor-pointer border-2 border-amber-300
                          hover:border-amber-500 hover:shadow-md transition-all"
               title="Гарын үсэг дээр дарж баталгаажуулна уу"
@@ -546,7 +542,7 @@ function HistoryTab({
           <div className="flex items-center justify-between text-[10px] text-gray-400">
             <span className="inline-flex items-center gap-1">
               <MdInfoOutline size={11} />
-              Нөгөө тал email + мэдэгдэлд харна
+              харилцагч email , мэдэгдэл харна
             </span>
             <span>{quickNote.length}/1000</span>
           </div>
@@ -568,7 +564,7 @@ function HistoryTab({
         <p className="text-[11px] text-gray-500 bg-gray-50 border border-[#ece8df]
                       rounded-lg px-3 py-2 m-0 inline-flex items-start gap-1.5">
           <MdInfoOutline size={12} className="shrink-0 mt-0.5" />
-          Одоо нөгөө талын ээлж. Тайлбар нэмэхийн тулд таны ээлж ирэхийг хүлээнэ үү.
+          Харилцагч мэдээллийг шалгах тул  хүлээнэ үү.
         </p>
       )}
 
@@ -590,9 +586,9 @@ function formatDateTime(iso) {
   } catch { return iso }
 }
 // Bottom action — статус + ээлжээс хамаарч өөрчлөгдөнө
-// BottomAction — Доод үндсэн товч (зөвхөн "Илгээх" эсвэл "Баталгаажуулах")
+// BottomAction — Доод үндсэн товч
 // Логик:
-//   DRAFT + creator         → Email input + Илгээх (enabled)
+//   DRAFT + creator         → "Тал нэмж илгээх" товч → AddParticipantModal нээгдэнэ
 //   SENT + myTurn           → Илгээх (enabled, /return)
 //   SENT + ээлж нөгөөд      → Илгээх (disabled — аль хэдийн илгээгдсэн)
 //   PARTIALLY_SIGNED        → Илгээх (disabled — гарын үсгийн фаз)
@@ -600,36 +596,26 @@ function formatDateTime(iso) {
 //   COMPLETED/etc           → Эцсийн badge
 function BottomAction({
   contract, isCreator, myTurn,
-  recipientEmail, setRecipientEmail,
-  onSend, onReturn, onConfirm, onClose,
+  onOpenAddParticipant,
+  onReturn, onConfirm, onClose,
   sending, confirming, closing,
 }) {
   const status = contract.status
 
-  // ── DRAFT (creator) — анх удаа илгээх (email хэрэгтэй) ──
+  // ── DRAFT (creator) — Modal-аар тал нэмж урих ──
   if (status === 'DRAFT' && isCreator) {
     return (
-      <div className="flex flex-col gap-2">
-        <input
-          type="email"
-          value={recipientEmail}
-          onChange={(e) => setRecipientEmail(e.target.value)}
-          placeholder="Хүлээн авагчийн имэйл"
-          className="w-full px-3 py-2 text-sm text-slate-900 font-sans border border-[#ece8df]
-                     rounded-lg outline-none focus:border-[#3d3a8c]
-                     placeholder:text-slate-400 bg-white"
-        />
-        <button
-          onClick={onSend}
-          disabled={!recipientEmail || sending}
-          className="w-full inline-flex items-center justify-center gap-1.5
-                     px-4 py-2.5 text-sm font-semibold text-white
-                     bg-[#3d3a8c] hover:bg-[#2d2a6e] rounded-lg cursor-pointer border-0
-                     disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <MdSend size={14} /> {sending ? 'Илгээж байна...' : 'Илгээх'}
-        </button>
-      </div>
+      <button
+        onClick={onOpenAddParticipant}
+        disabled={sending}
+        className="w-full inline-flex items-center justify-center gap-1.5
+                   px-4 py-2.5 text-sm font-semibold text-white
+                   bg-[#3d3a8c] hover:bg-[#2d2a6e] rounded-lg cursor-pointer border-0
+                   disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <MdPersonOutline size={16} />
+        {sending ? 'Илгээж байна…' : 'Тал нэмж илгээх'}
+      </button>
     )
   }
 
@@ -766,7 +752,7 @@ export default function ContractSidebar({
 
   const [drawModalOpen,   setDrawModalOpen] = useState(false)
   const [acceptModalOpen, setAcceptModalOpen] = useState(false)
-  const [recipientEmail,  setRecipientEmail]  = useState('')
+  const [addModalOpen,    setAddModalOpen]    = useState(false)
   const [quickNote,       setQuickNote]       = useState('')
 
   const status      = contract.status
@@ -802,19 +788,25 @@ export default function ContractSidebar({
     setDrawModalOpen(false)
     onSign(blob, type)
   }
-  const handleSendClick = async () => {
-    if (!recipientEmail) return
-    try {
-      await onSend(recipientEmail)
-      setRecipientEmail('')
-    } catch { /* parent error харна */ }
+  const handleAddSubmit = async (payload) => {
+    // payload: { user_id?, email, name?, subject? }
+    await onSend(payload)
+    setAddModalOpen(false)
   }
 
   return (
     <>
-      {/* Sidebar нь баруун ирмэгт нялзана: бүтэн өндөр, sharp corners */}
-      <div className="h-full w-full bg-[#fdfcf9] font-forum flex flex-col gap-4 p-5 print:hidden
-                      border-l border-[#ece8df]">
+      {/* Sidebar нь баруун ирмэгт нялзана: бүтэн өндөр, sharp corners.
+          Background: linear gradient (right-bottom teal → left-top white) —
+          inner card-уудын white bg-ын хооронд subtle depth өгнө. */}
+      <div
+        className="h-full w-full font-forum flex flex-col gap-4 p-5 print:hidden
+                   border-l border-[#ece8df]"
+        style={{
+          background:
+            'linear-gradient(to top left, rgba(20, 184, 166, 0.18), #ffffff)',
+        }}
+      >
 
         {/* Header — title + number badge */}
         <div className="flex items-center justify-between gap-2">
@@ -866,7 +858,7 @@ export default function ContractSidebar({
               contract={contract}
               currentUserId={user?.user_id}
               onAddClick={isCreator && status === 'DRAFT'
-                ? () => alert('Урилгыг "Илгээх" товчин дээр имэйлээр оруулна')
+                ? () => setAddModalOpen(true)
                 : null}
             />
           )}
@@ -918,9 +910,7 @@ export default function ContractSidebar({
             contract={contract}
             isCreator={isCreator}
             myTurn={myTurn}
-            recipientEmail={recipientEmail}
-            setRecipientEmail={setRecipientEmail}
-            onSend={handleSendClick}
+            onOpenAddParticipant={() => setAddModalOpen(true)}
             onReturn={onReturn}
             onConfirm={onConfirm}
             onClose={onClose}
@@ -947,6 +937,13 @@ export default function ContractSidebar({
           loading={signing}
         />
       )}
+
+      <AddParticipantModal
+        open={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+        onSubmit={handleAddSubmit}
+        submitting={sending}
+      />
     </>
   )
 }

@@ -100,17 +100,17 @@ function LogEntry({ entry, currentUserId }) {
 
   return (
     <div className={`border rounded-lg p-2.5 ${isMe ? 'bg-blue-50/40 border-blue-100' : 'bg-white border-gray-200'}`}>
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-2 ">
         <div className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center
                          ${isMe ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
           <MdPerson size={14} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs font-semibold text-gray-900">
+            <span className="text-sm font-semibold text-gray-900">
               {editorName(entry)}
             </span>
-            {isMe && <span className="text-[9px] text-gray-400">(Та)</span>}
+            {isMe && <span className="text-[9px] text-xs text-gray-400">(Та)</span>}
             <span className="text-[10px] text-gray-400">·</span>
             <span className="text-[10px] text-gray-500">{formatTime(entry.edited_at)}</span>
           </div>
@@ -124,7 +124,7 @@ function LogEntry({ entry, currentUserId }) {
           )}
 
           {hasChanges && (
-            <div className="mt-1.5">
+            <div className="mt-1.5 ">
               {keys.length <= 2 || open ? (
                 <div className="flex flex-col">
                   {keys.map(k => <ChangeRow key={k} keyName={k} change={fields[k]} />)}
@@ -211,10 +211,10 @@ export default function ChangeLog({ contractId, currentUserId, refreshKey = 0 })
   return (
     <div className="flex flex-col gap-2 min-h-0">
       <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500
-                      inline-flex items-center gap-1 shrink-0">
+                      inline-flex items-center gap-1 shrink-0 ">
         <MdHistory size={12} /> Өөрчлөлтийн түүх · {entries.length}
       </div>
-      <div className="flex flex-col gap-1.5 overflow-y-auto pr-1 -mr-1 min-h-0">
+      <div className="flex flex-col gap-1.5 overflow-y-auto  overflow-hidden pr-1 -mr-1 min-h-0">
         {entries.map(e => (
           <LogEntry key={e.edit_id} entry={e} currentUserId={currentUserId} />
         ))}

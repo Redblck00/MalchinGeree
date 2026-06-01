@@ -207,9 +207,9 @@ export default function ContractDetailPage() {
     }
   }
 
-  const handleSend = async (email) => {
-    // Өөрийн имэйл рүү гэрээ илгээхээс сэргийлэх
-    const trimmed = (email || '').trim()
+  const handleSend = async (payload) => {
+    // AddParticipantModal-аас { user_id?, email, name?, subject? } ирнэ.
+    const trimmed = (payload?.email || '').trim()
     if (user?.email && trimmed.toLowerCase() === user.email.toLowerCase()) {
       setError('Өөрийн имэйл рүү гэрээ илгээх боломжгүй')
       throw new Error('self-invite blocked')
@@ -219,7 +219,12 @@ export default function ContractDetailPage() {
     setError(null)
     try {
       await api.post(`/contracts/${id}/send`, {
-        participants: [{ role: 'COUNTERPARTY', email: trimmed }],
+        participants: [{
+          role:    'COUNTERPARTY',
+          email:   trimmed,
+          user_id: payload?.user_id || null,
+        }],
+        email_subject: payload?.subject || null,
       })
       setSuccess('Гэрээ амжилттай илгээгдлээ')
       await fetchContract()
@@ -402,6 +407,7 @@ export default function ContractDetailPage() {
       contentRef,
       contractNumber: contract?.contract_number,
       contractTitle:  contract?.title,
+      attachments:    contract?.attachments || [],
     })
 
   // ── Zoom controls ─────────────────────────────────
@@ -654,9 +660,15 @@ export default function ContractDetailPage() {
   //   │                                  │   sharp corners,   │
   //   │                                  │   flush right)     │
   //   └──────────────────────────────────┴────────────────────┘
+  //
+  // viewTransitionName: 'contract-card' — list page-ийн row-той ижил нэр.
+  // Browser нь list-ээс ороход row → page bounding box-ыг автомат морфлоно.
   // ══════════════════════════════════════════════════════════════
   return (
-    <div className="h-screen flex bg-gray-50 overflow-hidden">
+    <div
+      className="h-screen flex bg-gray-50 overflow-hidden"
+      style={{ viewTransitionName: 'contract-card' }}
+    >
 
       {/* ── Center column: header + scrollable document ── */}
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
@@ -767,7 +779,8 @@ export default function ContractDetailPage() {
       </div>
 
       {/* ── Right column: ContractSidebar (sharp corners, full height) ── */}
-      <aside className="w-96 shrink-0 h-full border-l border-gray-200 print:hidden">
+      {/* ContractSidebar өөрөө teal→white gradient bg-аа эзэмшинэ — энд style тавихгүй */}
+      <aside className="w-96 shrink-0 h-full print:hidden">
         <ContractSidebar
           contract={contract}
           user={user}

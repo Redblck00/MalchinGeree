@@ -19,10 +19,11 @@ const CONTRACT_FIELDS = [
   {
     group: 'Худалдагч',
     fields: [
-      { key: 'seller.name',    label: 'Худалдагчийн нэр',   type: 'text', auto: true },
-      { key: 'seller.phone',   label: 'Худалдагчийн утас',  type: 'number', auto: true },
-      { key: 'seller.email',   label: 'Худалдагчийн имейл', type: 'text', auto: true },
-      { key: 'seller.address', label: 'Худалдагчийн хаяг',  type: 'text', auto: true },
+      { key: 'seller.name',     label: 'Худалдагчийн нэр',     type: 'text', auto: true },
+      { key: 'seller.phone',    label: 'Худалдагчийн утас',    type: 'number', auto: true },
+      { key: 'seller.email',    label: 'Худалдагчийн имейл',   type: 'text', auto: true },
+      { key: 'seller.address',  label: 'Худалдагчийн хаяг',    type: 'text', auto: true },
+      { key: 'seller.register', label: 'Худалдагчийн регистр', type: 'register' },
     ],
   },
 
@@ -30,10 +31,11 @@ const CONTRACT_FIELDS = [
   {
     group: 'Худалдан авагч',
     fields: [
-      { key: 'buyer.name',    label: 'Худалдан авагчийн нэр',   type: 'text' },
-      { key: 'buyer.phone',   label: 'Худалдан авагчийн утас',  type: 'number' },
-      { key: 'buyer.email',   label: 'Худалдан авагчийн имейл', type: 'text' },
-      { key: 'buyer.address', label: 'Худалдан авагчийн хаяг',  type: 'text' },
+      { key: 'buyer.name',     label: 'Худалдан авагчийн нэр',     type: 'text' },
+      { key: 'buyer.phone',    label: 'Худалдан авагчийн утас',    type: 'number' },
+      { key: 'buyer.email',    label: 'Худалдан авагчийн имейл',   type: 'text' },
+      { key: 'buyer.address',  label: 'Худалдан авагчийн хаяг',    type: 'text' },
+      { key: 'buyer.register', label: 'Худалдан авагчийн регистр', type: 'register' },
     ],
   },
 
@@ -43,8 +45,9 @@ const CONTRACT_FIELDS = [
     group: 'Малын мэдээлэл ',
     fields: [
       { key: '#each livestock', label: 'Малын жагсаалт эхлэх',  type: 'each_start', color: 'teal' },
-      { key: 'livestock_type',  label: 'Малын төрөл',           type: 'text' },
+      { key: 'livestock_type',  label: 'Малын төрөл',           type: 'select' },
       { key: 'count',           label: 'Тоо толгой',            type: 'number' },
+      { key: 'weight',          label: 'Малын жин (кг)',        type: 'float' },
       { key: 'price_per_unit',  label: 'Нэгж үнэ',              type: 'number' },
       { key: '/each',           label: 'Малын жагсаалт дуусах', type: 'each_end',   color: 'teal' },
     ],
@@ -79,6 +82,12 @@ const CONTRACT_FIELDS = [
       { key: 'buyer.signature',  label: 'Худалдан авагчийн гарын үсэг', type: 'signature', color: 'green' },
     ],
   },
+]
+
+// Малын төрлийн сонголтууд (хэрэглэгч гараар бичихгүй → бичгийн алдаанаас сэргийлнэ)
+export const LIVESTOCK_TYPES = [
+  'Хонь', 'Үхэр', 'Тэмээ', 'Ямаа', 'Бяруу',
+  'Шүдлэн үхэр', 'Хурга', 'Ишиг', 'Төлөг', 'Тугал',
 ]
 
 // Хувийн талбарт зөвшөөрөгдсөн type-ууд (admin UI button-нд харагдана)

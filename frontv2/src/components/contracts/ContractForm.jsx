@@ -6,10 +6,17 @@ import {
   MdChevronLeft, MdInfoOutline, MdWarningAmber, MdSave,
   MdAdd, MdClose, MdArrowForward, MdArrowBack,
 } from 'react-icons/md'
-import CONTRACT_FIELDS from '@/lib/contractFields'
+import CONTRACT_FIELDS, { LIVESTOCK_TYPES } from '@/lib/contractFields'
+import { REGISTER_LETTERS } from '@/lib/registerLetters'
 
 const SYSTEM_ONLY_KEYS    = ['contract_number', 'year', 'month', 'day']
-const LIVESTOCK_ITEM_KEYS = ['livestock_type', 'count', 'price_per_unit']
+const LIVESTOCK_ITEM_KEYS = ['livestock_type', 'count', 'weight', 'price_per_unit']
+
+// Профайлаас авто-бөглөгддөг seller/buyer дэд талбарууд (register үүнд ОРОХГҮЙ — гараар)
+const AUTO_FILL_PROFILE_KEYS = ['name', 'phone', 'email', 'address']
+
+// Регистр: 2 крил үсэг + 8 оронтой тоо (жишээ: УБ12345678)
+const REGISTER_RE = /^[А-ЯӨҮЁ]{2}\d{8}$/
 
 const CYRILLIC_RE = /^[Ѐ-ӿ\s\-]+$/
 const validateLivestockItem = (item) => {
@@ -23,6 +30,10 @@ const validateLivestockItem = (item) => {
     const n = parseInt(item.count, 10)
     if (isNaN(n) || n < 1) e.count = 'Эерэг бүхэл тоо оруулна уу'
     else if (parseFloat(item.count) !== n) e.count = 'Бутархай биш бүхэл тоо'
+  }
+  if (item.weight != null && item.weight !== '') {
+    const w = parseFloat(item.weight)
+    if (isNaN(w) || w <= 0) e.weight = 'Жин 0-ээс их байх'
   }
   if (item.price_per_unit != null && item.price_per_unit !== '') {
     const p = parseFloat(item.price_per_unit)
@@ -82,6 +93,69 @@ function getNestedValue(obj, key) {
 }
 
 // ──────────────────────────────────────────────────────────
+// Регистрийн composite input — 2 крил үсэг select + 8 оронтой тоо
+// Утга нь нэг мөр болж хадгалагдана (жишээ: "УБ12345678")
+// ──────────────────────────────────────────────────────────
+function RegisterInput({ value, onChange, disabled }) {
+  // Хадгалагдсан мөрийг үсэг(2) + тоо(8) болгон задлах (бат бөх parse)
+  const m       = (value || '').match(/^([^\d]{0,2})(\d{0,8})/) || ['', '', '']
+  const l1      = m[1][0] || ''
+  const l2      = m[1][1] || ''
+  const digits  = m[2] || ''
+  const invalid = !!value && !REGISTER_RE.test(value)
+
+  const emit = (nl1, nl2, nd) => onChange(`${nl1}${nl2}${nd}`)
+
+  const selCls = `px-2 py-2.5 border rounded-xl text-sm outline-none transition-colors
+                  ${disabled
+                    ? 'bg-gray-50 border-gray-200 text-gray-600'
+                    : 'bg-white border-gray-200 text-gray-900 hover:border-gray-300 focus:border-[#3d3a8c] focus:ring-2 focus:ring-[#3d3a8c]/10'}`
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <select
+          value={l1}
+          onChange={e => emit(e.target.value, l2, digits)}
+          disabled={disabled}
+          className={selCls + ' shrink-0'}
+        >
+          <option value="">—</option>
+          {REGISTER_LETTERS.map(L => <option key={L} value={L}>{L}</option>)}
+        </select>
+        <select
+          value={l2}
+          onChange={e => emit(l1, e.target.value, digits)}
+          disabled={disabled}
+          className={selCls + ' shrink-0'}
+        >
+          <option value="">—</option>
+          {REGISTER_LETTERS.map(L => <option key={L} value={L}>{L}</option>)}
+        </select>
+        <input
+          type="text"
+          inputMode="numeric"
+          maxLength={8}
+          placeholder="12345678"
+          value={digits}
+          onChange={e => emit(l1, l2, e.target.value.replace(/\D/g, '').slice(0, 8))}
+          disabled={disabled}
+          className={`flex-1 min-w-0 px-3 py-2.5 border rounded-xl text-sm outline-none transition-colors tracking-widest
+                      ${disabled
+                        ? 'bg-gray-50 border-gray-200 text-gray-600'
+                        : invalid
+                          ? 'bg-red-50 border-red-300 text-red-700'
+                          : 'bg-white border-gray-200 text-gray-900 hover:border-gray-300 focus:border-[#3d3a8c] focus:ring-2 focus:ring-[#3d3a8c]/10'}`}
+        />
+      </div>
+      {invalid && (
+        <p className="text-[11px] text-red-500 m-0">2 үсэг + 8 оронтой тоо (жишээ: УБ12345678)</p>
+      )}
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────
 // Field component (label + badges + input)
 // ──────────────────────────────────────────────────────────
 function FormField({ field, value, onChange, disabled }) {
@@ -110,7 +184,9 @@ function FormField({ field, value, onChange, disabled }) {
           </span>
         )}
       </div>
-      {field.type === 'textarea' ? (
+      {field.type === 'register' ? (
+        <RegisterInput value={value} onChange={onChange} disabled={disabled} />
+      ) : field.type === 'textarea' ? (
         <textarea
           value={value || ''}
           onChange={e => onChange(e.target.value)}
@@ -169,21 +245,33 @@ function FormField({ field, value, onChange, disabled }) {
   )
 }
 
-function ValidatedInput({ label, value, onChange, error, type = 'text', ...rest }) {
+function ValidatedInput({ label, value, onChange, error, type = 'text', options = null, ...rest }) {
+  const cls = `w-full px-3 py-2.5 border rounded-xl text-sm outline-none bg-white
+               transition-colors
+               ${error
+                 ? 'border-red-300 bg-red-50 text-red-700'
+                 : 'border-gray-200 text-gray-900 hover:border-gray-300 focus:border-[#3d3a8c] focus:ring-2 focus:ring-[#3d3a8c]/10'}`
   return (
     <div className="flex flex-col gap-1.5 min-w-0">
       <label className="text-xs font-medium text-gray-700">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        className={`w-full px-3 py-2.5 border rounded-xl text-sm outline-none bg-white
-                    transition-colors
-                    ${error
-                      ? 'border-red-300 bg-red-50 text-red-700'
-                      : 'border-gray-200 text-gray-900 hover:border-gray-300 focus:border-[#3d3a8c] focus:ring-2 focus:ring-[#3d3a8c]/10'}`}
-        {...rest}
-      />
+      {options ? (
+        <select
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className={cls}
+        >
+          <option value="">— Сонгох —</option>
+          {options.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      ) : (
+        <input
+          type={type}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className={cls}
+          {...rest}
+        />
+      )}
       {error && <p className="text-[11px] text-red-500 m-0">{error}</p>}
     </div>
   )
@@ -209,12 +297,12 @@ function LivestockRow({ item, idx, onUpdate, onRemove }) {
           <MdClose size={12} /> Хасах
         </button>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <ValidatedInput
           label="Малын төрөл"
           value={item.livestock_type || ''}
           onChange={v => onUpdate(idx, 'livestock_type', v)}
-          placeholder="хонь, ямаа, үхэр..."
+          options={LIVESTOCK_TYPES}
           error={errors.livestock_type}
         />
         <ValidatedInput
@@ -226,6 +314,16 @@ function LivestockRow({ item, idx, onUpdate, onRemove }) {
           onChange={v => onUpdate(idx, 'count', v)}
           placeholder="10"
           error={errors.count}
+        />
+        <ValidatedInput
+          label="Жин (кг)"
+          type="number"
+          min="0"
+          step="any"
+          value={item.weight || ''}
+          onChange={v => onUpdate(idx, 'weight', v)}
+          placeholder="35.8"
+          error={errors.weight}
         />
         <ValidatedInput
           label="Нэгж үнэ (₮)"
@@ -441,7 +539,11 @@ export default function ContractForm({
 
   // Тухайн талбарыг auto-fill (disabled) эсэх
   const isAutoFill = (key) => {
-    if (key.startsWith(`${myRoleKey}.`)) return true
+    // Зөвхөн профайлаас бөглөгддөг талбарууд (name/phone/email/address) disabled.
+    // Регистр зэрэг гараар бөглөх талбар editable хэвээр.
+    if (key.startsWith(`${myRoleKey}.`)) {
+      return AUTO_FILL_PROFILE_KEYS.includes(key.split('.')[1])
+    }
     if (key === 'payment.total_amount' && hasLivestockArray) return true
     return false
   }
@@ -578,7 +680,7 @@ export default function ContractForm({
       }
       for (let i = 0; i < items.length; i++) {
         const it = items[i]
-        if (!it.livestock_type || !it.count || !it.price_per_unit) {
+        if (!it.livestock_type || !it.count || !it.weight || !it.price_per_unit) {
           setLocalError(`${i + 1}-р мөрийн бүх талбарыг бөглөнө үү`)
           return
         }

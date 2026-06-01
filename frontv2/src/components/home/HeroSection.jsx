@@ -3,7 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef } from "react";
 import useAuthStore from "@/app/store/authStore";
-
+import ContractHeroCards from "../ContractHeroCards/page";
 export default function HeroSection() {
   const heroRef = useRef(null);
   const { isAuthenticated, restoreAuth } = useAuthStore();
@@ -63,15 +63,15 @@ export default function HeroSection() {
             <div className="mt-10 flex flex-col sm:flex-row gap-4">
               <Link
                 href="/login"
-                className="px-10 py-4 bg-white text-emerald-700 font-bold text-base
-                           rounded-full shadow-lg hover:bg-emerald-50 hover:scale-105
+                className="px-8 py-2 bg-white\50 text-emerald-700 font-bold text-base
+                           rounded-sm shadow-lg hover:bg-emerald-50 hover:scale-105
                            transition-all duration-300"
               >
                 Нэвтрэх
               </Link>
               <Link
                 href="/register"
-                className="px-10 py-4 bg-transparent border-2 border-white/60 text-white
+                className="px-8 py-2 bg-transparent border-2 border-white/60 text-white
                            font-bold text-base rounded-full hover:bg-white/10 hover:border-white
                            hover:scale-105 transition-all duration-300 backdrop-blur-sm"
               >
@@ -83,8 +83,8 @@ export default function HeroSection() {
 
         {/* Right: documentIlustrator */}
         <div className="relative flex-1 flex items-center justify-center">
-          <div className="relative w-full max-w-md aspect-square">
-            {/* Soft glow behind illustration */}
+          {/* <div className="relative w-full max-w-md aspect-square">
+     
             <div className="absolute inset-0 bg-white/20 rounded-full blur-3xl scale-90" />
             <Image
               src="/home/documentIlustrator.png"
@@ -94,7 +94,14 @@ export default function HeroSection() {
               className="relative object-contain drop-shadow-2xl"
               sizes="(max-width: 1024px) 80vw, 480px"
             />
-          </div>
+          </div> */}
+
+          <ContractHeroCards  cards={[
+    "/template/template1.png",
+    "/template/template2.png",
+    "/template/template3.png",
+    "/template/template4.png",
+  ]} />
         </div>
       </div>
 

@@ -1,12 +1,17 @@
 'use client'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import useAuthStore from '@/app/store/authStore'
 import {
-  User, Inbox, Send, Clock, Archive,
-  FileText, Bookmark, LayoutGrid, MessageSquare, LogOut,
+  LayoutDashboard, User, FileText, Send, Inbox, Clock, Archive,
+  Bookmark, MessageSquare, LogOut, ChevronsLeft, ChevronsRight,
+  Menu, X,
 } from 'lucide-react'
+
+// Sidebar collapsed/expanded төлвийн localStorage түлхүүр
+const STORAGE_KEY = 'mg.sidebar.collapsed'
 
 const ADMIN_NAV = [
   { href: '/admin',                 label: 'Dashboard',  icon: '⊞' },
@@ -17,6 +22,10 @@ const ADMIN_NAV = [
   { href: '/admin/logs',            label: 'Лог',        icon: '📋' },
 ]
 
+// ══════════════════════════════════════════════════════════════
+// Sidebar router — ADMIN бол AdminSidebar (өөрчлөгдөөгүй),
+// бусад тохиолдолд шинэ UserSidebar
+// ══════════════════════════════════════════════════════════════
 export default function Sidebar() {
   const pathname     = usePathname()
   const router       = useRouter()
@@ -31,237 +40,322 @@ export default function Sidebar() {
   if (user?.user_type === 'ADMIN')
     return <AdminSidebar pathname={pathname} user={user} onLogout={handleLogout} />
 
-  const filter = searchParams.get('filter')
-  const isContractsBase = pathname === '/dashboard/contracts'
-  const isFilter = (f) => isContractsBase && filter === f
-  const isContractsRoot = isContractsBase && !filter
-
   return (
-    <aside
-      className="w-70 h-screen flex flex-col sticky top-0 shrink-0 overflow-hidden
-                  px-5 py-6"
-      style={{
-        background: 'linear-gradient(to bottom, #C8FAE4 25%, #9CF5D3 100%)',
-      }}
-    >
-      {/* ══════════════════════════════════════════════════
-          DECORATIVE SHAPES — органик (admin-аас өөр)
-          • Leaf (мал, малчин сэдэвт нийцсэн ургамал хэлбэр)
-          • Blob (зөөлөн, нялх)
-          • Sparkle (4 талт од)
-          • Wavy line (S-curve)
-          ══════════════════════════════════════════════════ */}
-
-      {/* Том blob — дээд баруун */}
-      <svg
-        aria-hidden
-        viewBox="0 0 200 200"
-        className="absolute -top-12 -right-12 w-52 h-52 text-emerald-300/30
-                   pointer-events-none"
-        fill="currentColor"
-      >
-        <path d="M44.5,-58.3C56.4,-49.1,63.5,-33.9,67.1,-18C70.7,-2.1,70.8,14.6,63.1,27.1C55.4,39.7,40,48.1,24,54.5C8,60.9,-8.6,65.4,-23.5,61.4C-38.3,57.5,-51.4,45.1,-58.6,30.4C-65.7,15.6,-67,-1.5,-62.5,-16.5C-57.9,-31.4,-47.6,-44.2,-34.7,-53.6C-21.7,-63,-6.1,-69,7.8,-65.2C21.8,-61.4,32.6,-47.4,44.5,-58.3Z" transform="translate(100 100)"/>
-      </svg>
-
-      {/* Leaf SVG — middle right */}
-      <svg
-        aria-hidden
-        viewBox="0 0 100 100"
-        className="absolute top-1/3 -right-6 w-24 h-24 rotate-12 text-emerald-500/20
-                   pointer-events-none"
-        fill="currentColor"
-      >
-        <path d="M50,5 C75,20 90,45 80,70 C70,90 45,95 25,80 C10,65 15,40 25,25 C30,15 40,8 50,5 Z M50,15 L50,85" stroke="currentColor" strokeWidth="1.5" fill="currentColor" fillOpacity="0.6" />
-      </svg>
-
-      {/* Leaf-2 — bottom area */}
-      <svg
-        aria-hidden
-        viewBox="0 0 100 100"
-        className="absolute bottom-40 -left-4 w-20 h-20 -rotate-45 text-emerald-600/15
-                   pointer-events-none"
-        fill="currentColor"
-      >
-        <path d="M50,5 C75,20 90,45 80,70 C70,90 45,95 25,80 C10,65 15,40 25,25 C30,15 40,8 50,5 Z" />
-      </svg>
-
-      {/* Blob — bottom right */}
-      <svg
-        aria-hidden
-        viewBox="0 0 200 200"
-        className="absolute -bottom-16 -right-6 w-44 h-44 text-emerald-400/25
-                   pointer-events-none"
-        fill="currentColor"
-      >
-        <path d="M37.8,-49.6C49.4,-39.4,59.3,-27.5,63.4,-13.4C67.4,0.6,65.7,16.9,57.9,29.2C50.1,41.5,36.2,49.8,21.8,55.1C7.4,60.5,-7.5,62.9,-21.4,58.7C-35.4,54.6,-48.4,43.9,-55.3,30.4C-62.1,17,-62.8,0.7,-58,-13.2C-53.2,-27.1,-43,-38.6,-31.1,-48.7C-19.2,-58.8,-5.7,-67.5,5.8,-65.9C17.4,-64.3,26.2,-59.8,37.8,-49.6Z" transform="translate(100 100)"/>
-      </svg>
-
-      {/* Sparkle ✦ — top accent */}
-      <svg
-        aria-hidden
-        viewBox="0 0 24 24"
-        className="absolute top-32 right-4 w-5 h-5 text-emerald-700/30 pointer-events-none"
-        fill="currentColor"
-      >
-        <path d="M12 0 L13.5 10.5 L24 12 L13.5 13.5 L12 24 L10.5 13.5 L0 12 L10.5 10.5 Z" />
-      </svg>
-
-      {/* Sparkle ✦ — middle accent */}
-      <svg
-        aria-hidden
-        viewBox="0 0 24 24"
-        className="absolute top-1/2 left-2 w-3 h-3 text-emerald-700/40 pointer-events-none"
-        fill="currentColor"
-      >
-        <path d="M12 0 L13.5 10.5 L24 12 L13.5 13.5 L12 24 L10.5 13.5 L0 12 L10.5 10.5 Z" />
-      </svg>
-
-      {/* Sparkle ✦ — bottom accent */}
-      <svg
-        aria-hidden
-        viewBox="0 0 24 24"
-        className="absolute bottom-32 right-12 w-4 h-4 text-emerald-700/30 pointer-events-none"
-        fill="currentColor"
-      >
-        <path d="M12 0 L13.5 10.5 L24 12 L13.5 13.5 L12 24 L10.5 13.5 L0 12 L10.5 10.5 Z" />
-      </svg>
-
-      {/* Wavy S-curve line */}
-      <svg
-        aria-hidden
-        viewBox="0 0 300 50"
-        className="absolute top-1/2 -left-10 w-72 h-12 text-emerald-600/15
-                   pointer-events-none"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <path d="M0,25 Q50,0 100,25 T200,25 T300,25" />
-      </svg>
-
-      {/* ══════════════════════════════════════════════════
-          CONTENT
-          ══════════════════════════════════════════════════ */}
-      <div className="relative z-10 flex flex-col flex-1 min-h-0">
-
-      {/* МалчныГэрээ logo */}
-      <div className="px-2 text-center mb-4">
-        <Link href="/" className="text-2xl font-bold text-[#006B35] m-0 tracking-tight">
-          МалчныГэрээ
-        </Link>
-      </div>
-
-      {/* Sheep icon hero */}
-      <div className="flex justify-center my-2 ">
-        <div className="w-25 h-25 rounded-full bg-[#d0f5ee] flex items-center justify-center
-                        shadow-sm ring-2 ring-white/60">
-          <Image
-            src="/systemIcon.png"
-            alt="system"
-            width={120}
-            height={120}
-            className="object-contain"
-          />
-        </div>
-      </div>
-
-      {/* Nav */}
-      <nav className="mt-15 flex flex-col gap-1">
-        <NavItem
-          icon={<LayoutGrid size={18} />}
-          href="/dashboard"
-          active={pathname === '/dashboard'}
-        >
-          Dashboard
-        </NavItem>
-
-        <NavItem
-          icon={<User size={18} />}
-          href="/dashboard/profile"
-          active={pathname.startsWith('/dashboard/profile') || pathname.startsWith('/dashboard/signature')}
-        >
-          profiles
-        </NavItem>
-
-        <NavItem
-          icon={<FileText size={18} />}
-          href="/dashboard/contracts"
-          active={isContractsRoot}
-        >
-          Баримт бичиг
-        </NavItem>
-
-        <SubNavItem icon={<Send size={14} />}    href="/dashboard/contracts?filter=sent"    active={isFilter('sent')}>илгээсэн</SubNavItem>
-        <SubNavItem icon={<Inbox size={14} />}   href="/dashboard/contracts?filter=inbox"   active={isFilter('inbox')}>ирсэн</SubNavItem>
-        <SubNavItem icon={<Clock size={14} />}   href="/dashboard/contracts?filter=waiting" active={isFilter('waiting')}>хүлээгдэж байгаа</SubNavItem>
-        <SubNavItem icon={<Archive size={14} />} href="/dashboard/contracts?filter=closed"  active={isFilter('closed')}>хаагдсан</SubNavItem>
-
-        <NavItem
-          icon={<Bookmark size={18} />}
-          href="/dashboard/templates"
-          active={pathname.startsWith('/dashboard/templates')}
-        >
-          загвар
-        </NavItem>
-      </nav>
-
-      {/* Bottom block */}
-      <div className="flex-1" />
-
-      <div className="px-3 py-2">
-        <button
-          className="flex items-center gap-2 text-sm text-[#1a4d33] hover:text-[#006B35]
-                     bg-transparent border-0 cursor-pointer p-0"
-        >
-          <MessageSquare size={16} />
-          Санал хүсэлт
-        </button>
-      </div>
-
-      <button
-        onClick={handleLogout}
-        className="flex items-center gap-3 px-4 py-3 mt-2 text-sm font-medium text-[#1a4d33]
-                   bg-white rounded-2xl shadow-sm hover:shadow-md hover:bg-gray-50
-                   transition-all cursor-pointer border-0 text-left"
-      >
-        <LogOut size={16} />
-        Log out
-      </button>
-      </div>
-    </aside>
+    <UserSidebar
+      pathname={pathname}
+      searchParams={searchParams}
+      user={user}
+      onLogout={handleLogout}
+    />
   )
 }
 
-function NavItem({ icon, href, active, children }) {
+// ══════════════════════════════════════════════════════════════
+// USER SIDEBAR — Linear/Vercel/Notion стиль
+//
+// • Цайвар цагаан фон, 1px border (no shadow, no gradient)
+// • Emerald-600 зөвхөн active state + brand mark-д accent
+// • rounded-md (4px) — large rounded байхгүй
+// • Group label: uppercase tracking-widest text-gray-400
+// • Collapsed mode (64px): icon-only + title attribute tooltip
+// • Persisted via localStorage
+// ══════════════════════════════════════════════════════════════
+function UserSidebar({ pathname, searchParams, user, onLogout }) {
+  const [collapsed,  setCollapsed]  = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(STORAGE_KEY) === 'true') setCollapsed(true)
+    } catch (_) { /* private-mode: localStorage хааж байх боломжтой */ }
+  }, [])
+
+  const toggle = () => {
+    const next = !collapsed
+    setCollapsed(next)
+    try { localStorage.setItem(STORAGE_KEY, String(next)) } catch (_) {}
+  }
+
+  // Pathname солигдох үед mobile drawer автомат хаагдана
+  useEffect(() => { setMobileOpen(false) }, [pathname])
+
+  // ESC дарж мобайл drawer хаах + body scroll lock
+  useEffect(() => {
+    if (!mobileOpen) return
+    document.body.style.overflow = 'hidden'
+    const onKey = (e) => { if (e.key === 'Escape') setMobileOpen(false) }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = ''
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [mobileOpen])
+
+  const filter          = searchParams.get('filter')
+  const isContractsBase = pathname === '/dashboard/contracts'
+  const isFilter        = (f) => isContractsBase && filter === f
+  const isContractsRoot = isContractsBase && !filter
+
+  const fullName = user
+    ? `${user.last_name || ''} ${user.first_name || ''}`.trim()
+    : ''
+  const initials = user
+    ? `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase()
+    : ''
+
+  return (
+    <>
+      {/* ── Mobile hamburger (< lg) ────────────────────
+          Drawer хаагдсан үед л харагдана. Бусад page-аас өмнөх z-index биш */}
+      {!mobileOpen && (
+        <button
+          onClick={() => setMobileOpen(true)}
+          aria-label="Цэс нээх"
+          className="lg:hidden fixed top-3 left-3 z-30 w-10 h-10 rounded-md
+                     bg-white border border-gray-200 shadow-sm
+                     inline-flex items-center justify-center
+                     text-gray-700 hover:bg-gray-50 cursor-pointer"
+        >
+          <Menu size={20} />
+        </button>
+      )}
+
+      {/* ── Backdrop (mobile-only) ─────────────────── */}
+      {mobileOpen && (
+        <div
+          onClick={() => setMobileOpen(false)}
+          className="lg:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+          aria-hidden
+        />
+      )}
+
+      <aside
+        className={`
+          flex flex-col border-r border-gray-200
+          transition-transform duration-200 ease-out
+
+          lg:sticky lg:top-0 lg:shrink-0 lg:h-screen lg:translate-x-0
+          ${collapsed ? 'lg:w-16' : 'lg:w-60'}
+
+          fixed top-0 left-0 bottom-0 z-50 w-72 max-w-[85vw]
+          ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}
+        style={{
+          // Зүүн доод буланд бүүдгэр teal цэвэрлэгээ — цайвар цагаан фоны
+          // дунд "уусаж" харагдана.
+          background:
+            'radial-gradient(circle at 0% 100%, rgba(94, 234, 212, 0.5) 0%, transparent 55%), #ffffff',
+        }}
+        aria-label="Үндсэн цэс"
+      >
+      {/* ── Brand header ────────────────────────────── */}
+      <div className="h-16 px-3 flex items-center justify-between border-b border-gray-100 shrink-0">
+        <Link href="/" className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-md bg-emerald-600 flex items-center justify-center shrink-0">
+            <Image src="/systemIcon.png" alt="" width={18} height={18}
+                   className="object-contain" />
+          </div>
+          {!collapsed && (
+            <span className="text-sm font-semibold text-gray-900 truncate">
+              МалчныГэрээ
+            </span>
+          )}
+        </Link>
+        {!collapsed && (
+          <CollapseButton onClick={toggle} icon={<ChevronsLeft size={16} />} label="Хумих" />
+        )}
+      </div>
+
+      {/* ── Collapsed: expand товч ──────────────────── */}
+      {collapsed && (
+        <div className="px-1.5 py-2 border-b border-gray-100">
+          <CollapseButton
+            onClick={toggle}
+            icon={<ChevronsRight size={16} />}
+            label="Сунгах"
+            wide
+          />
+        </div>
+      )}
+
+      {/* ── Nav ─────────────────────────────────────── */}
+      <nav className="flex-1 overflow-y-auto no-scrollbar px-2 py-3 flex flex-col gap-5">
+        <NavGroup label="Үндсэн" collapsed={collapsed}>
+          <NavItem icon={LayoutDashboard} href="/dashboard" collapsed={collapsed}
+                   active={pathname === '/dashboard'}>
+            Хяналтын самбар
+          </NavItem>
+          <NavItem icon={User} href="/dashboard/profile" collapsed={collapsed}
+                   active={pathname.startsWith('/dashboard/profile') ||
+                           pathname.startsWith('/dashboard/signature')}>
+            Профайл
+          </NavItem>
+        </NavGroup>
+
+        <NavGroup label="Ажлын урсгал" collapsed={collapsed}>
+          <NavItem icon={FileText} href="/dashboard/contracts" collapsed={collapsed}
+                   active={isContractsRoot}>
+            Гэрээ
+          </NavItem>
+          {/* Sub-filter — зөвхөн expanded mode-д. Collapsed-д бол хэрэглэгч
+              үндсэн "Гэрээ" холбоосоор ороод доторх tab-аас шүүж сонгоно. */}
+          {!collapsed && (
+            <div className="ml-3 mt-0.5 mb-1 pl-3 border-l border-gray-100 flex flex-col gap-0.5">
+              <SubNavItem icon={Send}    href="/dashboard/contracts?filter=sent"
+                          active={isFilter('sent')}>Илгээсэн</SubNavItem>
+              <SubNavItem icon={Inbox}   href="/dashboard/contracts?filter=inbox"
+                          active={isFilter('inbox')}>Ирсэн</SubNavItem>
+              <SubNavItem icon={Clock}   href="/dashboard/contracts?filter=waiting"
+                          active={isFilter('waiting')}>Хүлээгдэж буй</SubNavItem>
+              <SubNavItem icon={Archive} href="/dashboard/contracts?filter=closed"
+                          active={isFilter('closed')}>Хаагдсан</SubNavItem>
+            </div>
+          )}
+          <NavItem icon={Bookmark} href="/dashboard/templates" collapsed={collapsed}
+                   active={pathname.startsWith('/dashboard/templates')}>
+            Загвар
+          </NavItem>
+        </NavGroup>
+
+        <NavGroup label="Хэрэгсэл" collapsed={collapsed}>
+          <NavItem icon={MessageSquare} href="#" collapsed={collapsed}>
+            Санал хүсэлт
+          </NavItem>
+        </NavGroup>
+      </nav>
+
+      {/* ── Profile footer ──────────────────────────── */}
+      <div className="border-t border-gray-100 p-2 shrink-0">
+        {!collapsed ? (
+          <div className="flex items-center gap-1.5">
+            <Link
+              href="/dashboard/profile"
+              className="flex items-center gap-2.5 flex-1 min-w-0 rounded-md
+                         hover:bg-gray-50 transition-colors px-1.5 py-1"
+            >
+              <div className="w-9 h-9 rounded-full bg-emerald-600 text-white
+                              flex items-center justify-center font-semibold text-xs uppercase shrink-0">
+                {initials || <User size={16} />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-900 m-0 truncate">
+                  {fullName || 'Хэрэглэгч'}
+                </p>
+                <p className="text-xs text-gray-500 m-0 truncate">
+                  {user?.email || user?.phone || ''}
+                </p>
+              </div>
+            </Link>
+            <button
+              onClick={onLogout}
+              aria-label="Гарах"
+              title="Гарах"
+              className="w-8 h-8 rounded-md inline-flex items-center justify-center
+                         text-gray-400 hover:text-red-600 hover:bg-red-50
+                         cursor-pointer border-0 bg-transparent transition-colors shrink-0"
+            >
+              <LogOut size={15} />
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-1.5 py-1">
+            <Link
+              href="/dashboard/profile"
+              aria-label={fullName || 'Профайл'}
+              title={fullName || 'Профайл'}
+              className="w-9 h-9 rounded-full bg-emerald-600 text-white
+                         flex items-center justify-center font-semibold text-xs uppercase
+                         hover:ring-2 hover:ring-emerald-200 transition-shadow"
+            >
+              {initials || <User size={16} />}
+            </Link>
+            <button
+              onClick={onLogout}
+              aria-label="Гарах"
+              title="Гарах"
+              className="w-8 h-8 rounded-md inline-flex items-center justify-center
+                         text-gray-400 hover:text-red-600 hover:bg-red-50
+                         cursor-pointer border-0 bg-transparent transition-colors"
+            >
+              <LogOut size={15} />
+            </button>
+          </div>
+        )}
+      </div>
+    </aside>
+    </>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════
+// Reusable atoms (UserSidebar-д л ашиглагдана)
+// ══════════════════════════════════════════════════════════════
+function CollapseButton({ onClick, icon, label, wide = false }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={`${wide ? 'w-full h-8' : 'w-7 h-7'} rounded-md inline-flex items-center justify-center
+                  text-gray-400 hover:text-gray-700 hover:bg-gray-100
+                  cursor-pointer border-0 bg-transparent transition-colors`}
+    >
+      {icon}
+    </button>
+  )
+}
+
+function NavGroup({ label, collapsed, children }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      {!collapsed && label && (
+        <p className="px-3 text-[10px] font-semibold uppercase tracking-widest
+                      text-gray-400 mb-1 m-0">
+          {label}
+        </p>
+      )}
+      {children}
+    </div>
+  )
+}
+
+function NavItem({ icon: Icon, href, active, collapsed, children }) {
   return (
     <Link
       href={href}
-      className={`flex items-center gap-2 px-4 h-12 rounded-2xl text-[14px]
+      aria-current={active ? 'page' : undefined}
+      title={collapsed && typeof children === 'string' ? children : undefined}
+      className={`relative flex items-center gap-2.5 h-9 rounded-md text-sm font-medium
                   transition-colors
+                  ${collapsed ? 'justify-center px-0' : 'px-3'}
                   ${active
-                    ? 'bg-[#BDEFD9] text-[#156c06] font-semibold'
-                    : 'text-[#1a4d33] hover:bg-white/40 font-medium'}`}
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
     >
-      <span className="w-5 h-5 flex items-center justify-center shrink-0">{icon}</span>
-      {children}
+      {/* Active accent — зүүн талын жижиг bar (зөвхөн expanded mode-д) */}
+      {active && !collapsed && (
+        <span aria-hidden
+              className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r-sm bg-emerald-600" />
+      )}
+      <Icon size={18} className="shrink-0" strokeWidth={active ? 2.25 : 1.75} />
+      {!collapsed && <span className="truncate">{children}</span>}
     </Link>
   )
 }
 
-function SubNavItem({ icon, href, active, children }) {
+function SubNavItem({ icon: Icon, href, active, children }) {
   return (
     <Link
       href={href}
-      className={`flex items-center gap-2.5 ml-6 px-3 h-10 rounded-xl text-[13px]
+      aria-current={active ? 'page' : undefined}
+      className={`flex items-center gap-2 h-8 px-2 rounded-md text-[13px]
                   transition-colors
                   ${active
-                    ? 'bg-[#BDEFD9] text-[#B1275F] font-semibold'
-                    : 'text-[#1a4d33]/80 hover:bg-white/40'}`}
+                    ? 'bg-emerald-50 text-emerald-700 font-medium'
+                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}`}
     >
-      <span className="w-4 h-4 flex items-center justify-center shrink-0 opacity-70">
-        {icon}
-      </span>
-      {children}
+      <Icon size={13} className="shrink-0" />
+      <span className="truncate">{children}</span>
     </Link>
   )
 }

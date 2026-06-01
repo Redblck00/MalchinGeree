@@ -37,7 +37,7 @@ export default function AlertModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative bg-white rounded-3xl shadow-2xl
+        className="relative bg-white  shadow-xl
                    w-full max-w-md p-8 pt-12 text-center"
         style={{ animation: 'alertModalIn 0.2s ease-out' }}
       >
@@ -80,10 +80,8 @@ export default function AlertModal({
           onClick={onClose}
           className="w-full py-3 rounded-2xl text-white font-semibold text-base
                      cursor-pointer border-0 transition-transform
-                     hover:scale-[1.02] active:scale-[0.99]"
-          style={{
-            background: 'linear-gradient(90deg, #80B7FE 0%, #27DEC9 100%)',
-          }}
+                     hover:scale-[1.02] active:scale-[0.99] bg-gradient-to-r from-[#d1d1db] to-[#50e0d4]"
+         
         >
           {buttonText}
         </button>

@@ -1,18 +1,24 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { isImageAttachment } from '@/lib/pdfjs'
 
 
-// ContractA4Document — Жинхэнэ element-level pagination
+// ContractA4Document — Жинхэнэ element-level pagination + зургийн хавсралт
 //
 // АЛГОРИТМ:
 //   1. Hidden measure div дотор бүх HTML-г рендер хийгээд
-//   2. Top-level child element бүрийн offsetHeight-г уншиж
-//   3. Page-ийн агуулгын өндөрт багтахаар elements-ийг бүлэглэх
-//      (хэрэв нэмж оруулбал overflow болох гэвэл шинэ page эхлүүлэх)
-//   4. Page бүр өөрийн HTML chunk-аа дүрсэлнэ — translateY/overflow:hidden ҮГҮЙ
+//   2. Мөр (line) бүрийн offsetHeight-г уншиж page-д багтаахаар бүлэглэх
+//      (нэмж оруулбал overflow болох гэвэл шинэ page эхлүүлэх)
+//   3. ЗУРГИЙН хавсралт — гэрээний ҮНДСЭН хэсэг бүрэн дууссаны ДАРАА шинэ
+//      хуудаснаас, зураг бүр 1 хуудас, object-contain (харьцаа хадгална).
 //
-// Энэ нь paragraph-ыг дунд нь таслахгүй, жинхэнэ Word/Google Docs шиг
-// pagination хийнэ.
+//   PDF / бусад файл хавсралт нь документэд НЭМЭГДЭХГҮЙ — хэрэглэгч sidebar
+//   дахь "хавсралт харах" товчоор тусдаа нээж үзнэ (pdf.js-ийн удаашрал ба
+//   Cloudinary-ийн PDF хүргэлтийн хязгаарлалтаас зайлсхийнэ).
+//
+// QR + гэрээний дугаар:
+//   • ЗӨВХӨН гэрээний үндсэн агуулгын хамгийн сүүлийн хуудсанд.
+//   • Хавсралт (зураг) хуудаснууд дээр QR / дугаар ХАРАГДАХГҮЙ.
 
 const PAGE_WIDTH_MM     = 210
 const PAGE_HEIGHT_MM    = 297
@@ -26,6 +32,9 @@ const CONTENT_WIDTH_MM  = PAGE_WIDTH_MM - PAD_X_MM * 2
 const MM_TO_PX = 3.7795275591  // 96dpi
 const contentHeightPx = CONTENT_HEIGHT_MM * MM_TO_PX
 
+// Хавсралтын content муж — header label-ийн дараах өндөр
+const ATTACH_CONTENT_HEIGHT_MM = CONTENT_HEIGHT_MM - 10
+
 // Page content-той ижил CSS style — measure div-д ашиглах
 const SHARED_CONTENT_STYLES = {
   fontFamily: 'Georgia, "Times New Roman", serif',
@@ -37,8 +46,8 @@ const SHARED_CONTENT_STYLES = {
 
 // ── HTML-г line-түвшинд хуудаслах ─────────────────────
 // rendered_content нь энгийн текст + \n + inline <img> хэлбэртэй учир
-// мөр (line) бүрийг тус тусад нь хэмжиж page-д хувиарлана. Element.children
-// нь text node-уудыг буцаадаггүй тул өмнөх element-түвшний арга бүтэлгүйтсэн.
+// мөр (line) бүрийг тус тусад нь хэмжиж page-д хувиарлана. Нэг мөр
+// бүхэлдээ нэг хуудсанд орох тул текст/зураг дунд нь тасрахгүй.
 function paginateHtmlIntoPages(htmlContent, maxPageHeightPx) {
   if (!htmlContent || typeof window === 'undefined') return [htmlContent || '']
 
@@ -95,27 +104,57 @@ export default function ContractA4Document({
   contractNumber = '',
   brandName = 'Цахим Гэрээ',
   zoom = 1,
-  attachments = [],          // NEW: [{ file_url, file_type, file_name }, ...]
+  attachments = [],          // [{ attachment_id, file_url, file_type, file_name }, ...]
   onPageCountChange = null,
 }) {
   const [pagesHtml, setPagesHtml] = useState([])
 
-  // Pagination — htmlContent өөрчлөгдөх бүрд дахин хувиарлана
+  // ── Үндсэн агуулгыг хуудаслах ──
+  // setState-ийг rAF callback дотор дуудна (effect body дотор синхроноор биш)
   useEffect(() => {
-    if (!htmlContent) {
-      setPagesHtml([])
-      onPageCountChange?.(attachments.length)
-      return
-    }
     const id = requestAnimationFrame(() => {
-      const pages = paginateHtmlIntoPages(htmlContent, contentHeightPx)
-      setPagesHtml(pages)
-      onPageCountChange?.(pages.length + attachments.length)
+      setPagesHtml(htmlContent ? paginateHtmlIntoPages(htmlContent, contentHeightPx) : [])
     })
     return () => cancelAnimationFrame(id)
-  }, [htmlContent, attachments.length, onPageCountChange])
+  }, [htmlContent])
 
-  if (pagesHtml.length === 0 && attachments.length === 0) {
+  // ── Хуудасны жагсаалт (descriptors) — үндсэн + ЗУРГИЙН хавсралт ──
+  // PDF / бусад файл документэд орохгүй (sidebar-аас тусдаа харна).
+  const descriptors = useMemo(() => {
+    const out = []
+    const mainCount = pagesHtml.length
+
+    pagesHtml.forEach((html, i) => {
+      out.push({
+        key: `c-${i}`,
+        kind: 'main',
+        html,
+        isLastMain: i === mainCount - 1,
+      })
+    })
+
+    const images = attachments.filter(isImageAttachment)
+    images.forEach((att, i) => {
+      out.push({
+        key: `img-${att.attachment_id ?? i}`,
+        kind: 'image',
+        att,
+        attOrdinal: i + 1,
+        attTotal: images.length,
+      })
+    })
+
+    return out
+  }, [pagesHtml, attachments])
+
+  const totalPageCount = descriptors.length
+
+  // ── Эцэг компонент руу нийт хуудасны тоог дамжуулах ──
+  useEffect(() => {
+    onPageCountChange?.(totalPageCount)
+  }, [totalPageCount, onPageCountChange])
+
+  if (totalPageCount === 0) {
     return (
       <div className="flex justify-center py-10">
         <div className="w-6 h-6 border-2 border-gray-200 border-t-[#3d3a8c]
@@ -124,50 +163,36 @@ export default function ContractA4Document({
     )
   }
 
-  const contractPageCount = pagesHtml.length
-  const totalPageCount    = contractPageCount + attachments.length
-  // QR код нь сүүлийн ХАВСРАЛТЫН ЭСВЭЛ гэрээний хуудсанд харагдана:
-  // attachments-гүй бол гэрээний сүүл, attachments-тэй бол сүүлийн attachment
-  const qrOnContractLastPage = attachments.length === 0
-
   return (
     <div className="flex flex-col items-center gap-8">
-      {/* ── Гэрээний хуудаснууд ── */}
-      {pagesHtml.map((pageHtml, i) => (
-        <ZoomedPage key={`c-${i}`} zoom={zoom}>
-          <PageView
-            pageIndex={i}
-            pageCount={totalPageCount}
-            pageHtml={pageHtml}
-            qrCodeUrl={(qrOnContractLastPage && i === contractPageCount - 1) ? qrCodeUrl : null}
-            contractNumber={contractNumber}
-            brandName={brandName}
-          />
-        </ZoomedPage>
-      ))}
-
-      {/* ── Хавсралт хуудаснууд (гэрээний дараа) ── */}
-      {attachments.map((att, i) => {
-        const absoluteIdx = contractPageCount + i
-        const isLastAttachment = i === attachments.length - 1
-        return (
-          <ZoomedPage key={`att-${att.attachment_id || i}`} zoom={zoom}>
+      {descriptors.map((d, absoluteIdx) => (
+        <ZoomedPage key={d.key} zoom={zoom}>
+          {d.kind === 'main' ? (
+            <PageView
+              pageIndex={absoluteIdx}
+              pageCount={totalPageCount}
+              pageHtml={d.html}
+              // QR + дугаар ЗӨВХӨН үндсэн агуулгын сүүлийн хуудсанд
+              qrCodeUrl={d.isLastMain ? qrCodeUrl : null}
+              contractNumber={d.isLastMain ? contractNumber : null}
+              brandName={brandName}
+            />
+          ) : (
             <AttachmentPageView
               pageIndex={absoluteIdx}
               pageCount={totalPageCount}
-              attachment={att}
-              attachmentIndex={i + 1}
-              attachmentTotal={attachments.length}
-              qrCodeUrl={isLastAttachment ? qrCodeUrl : null}
-              contractNumber={contractNumber}
+              attachment={d.att}
+              attachmentIndex={d.attOrdinal}
+              attachmentTotal={d.attTotal}
               brandName={brandName}
             />
-          </ZoomedPage>
-        )
-      })}
+          )}
+        </ZoomedPage>
+      ))}
     </div>
   )
 }
+
 // ── Zoom wrapper ──────────────────────────────────────
 function ZoomedPage({ zoom, children }) {
   return (
@@ -197,18 +222,17 @@ function PageView({
   contractNumber,
   brandName,
 }) {
-  const isLast = pageIndex === pageCount - 1
-
   return (
     <div
-      className="contract-page bg-white   relative"
+      className="contract-page bg-white relative"
       data-page-num={pageIndex + 1}
+      data-doc-kind="main"
       style={{
         width:  `${PAGE_WIDTH_MM}mm`,
         height: `${PAGE_HEIGHT_MM}mm`,
         padding: `${PAD_TOP_MM}mm ${PAD_X_MM}mm ${PAD_BOTTOM_MM}mm ${PAD_X_MM}mm`,
         boxSizing: 'border-box',
-        // overflow:hidden АШИГЛАХГҮЙ — pagination нь element-түвшинд таарсан
+        // overflow:hidden АШИГЛАХГҮЙ — pagination нь мөр-түвшинд таарсан
         ...SHARED_CONTENT_STYLES,
       }}
     >
@@ -218,36 +242,30 @@ function PageView({
         dangerouslySetInnerHTML={{ __html: pageHtml }}
       />
 
-      {/* Footer (absolute, доод хэсэгт) */}
+      {/* Footer — QR/дугаар зөвхөн дамжуулагдсан үед (= үндсэн сүүлийн хуудас) */}
       <PageFooter
         pageNum={pageIndex + 1}
         totalPages={pageCount}
         qrCodeUrl={qrCodeUrl}
         contractNumber={contractNumber}
         brandName={brandName}
-        isLast={isLast}
       />
     </div>
   )
 }
 
-// ── Хавсралт хуудас ───────────────────────────────────
-// Image → <img object-contain>, PDF → <iframe>, бусад → файл card
+// ── Зургийн хавсралт ──────────────────────────────────
+// Зураг бүр өөрийн A4 хуудсанд object-contain — харьцаа хадгална,
+// нэг хуудсанд бүтнээрээ багтах тул дунд нь тасрахгүй. QR/дугааргүй.
 function AttachmentPageView({
   pageIndex, pageCount, attachment,
-  attachmentIndex, attachmentTotal,
-  qrCodeUrl, contractNumber, brandName,
+  attachmentIndex, attachmentTotal, brandName,
 }) {
-  const isLast  = pageIndex === pageCount - 1
-  const isImage = attachment.file_type?.startsWith('image/')
-  const isPdf   = attachment.file_type === 'application/pdf'
-                || attachment.file_url?.toLowerCase().endsWith('.pdf')
-
   return (
     <div
       className="contract-page bg-white shadow-lg rounded-sm relative"
       data-page-num={pageIndex + 1}
-      data-attachment="true"
+      data-doc-kind="image"
       style={{
         width:  `${PAGE_WIDTH_MM}mm`,
         height: `${PAGE_HEIGHT_MM}mm`,
@@ -256,103 +274,52 @@ function AttachmentPageView({
         ...SHARED_CONTENT_STYLES,
       }}
     >
-      {/* Header label — хавсралт N/M */}
       <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-200">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-widest font-bold text-gray-500">
-            ХАВСРАЛТ {attachmentIndex} / {attachmentTotal}
-          </span>
-        </div>
+        <span className="text-[10px] uppercase tracking-widest font-bold text-gray-500">
+          ХАВСРАЛТ {attachmentIndex} / {attachmentTotal}
+        </span>
         <span className="text-[10px] text-gray-400 truncate max-w-[50%]">
           {attachment.file_name}
         </span>
       </div>
 
-      {/* Content — image / pdf / fallback */}
       <div
         style={{
           width: '100%',
-          height: `${CONTENT_HEIGHT_MM - 10}mm`,
+          height: `${ATTACH_CONTENT_HEIGHT_MM}mm`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           overflow: 'hidden',
         }}
       >
-        {isImage ? (
-          <img
-            src={attachment.file_url}
-            alt={attachment.file_name}
-            style={{
-              maxWidth:  '100%',
-              maxHeight: '100%',
-              objectFit: 'contain',
-            }}
-          />
-        ) : isPdf ? (
-          <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-            <iframe
-              src={`${attachment.file_url}#view=FitH&toolbar=1`}
-              title={attachment.file_name}
-              style={{
-                width: '100%',
-                height: '100%',
-                border: '1px solid #e5e7eb',
-                borderRadius: '4px',
-              }}
-            />
-            <a
-              href={attachment.file_url}
-              target="_blank"
-              rel="noopener"
-              className="no-underline"
-              style={{
-                position: 'absolute',
-                bottom: 8,
-                right: 8,
-                padding: '4px 10px',
-                background: 'rgba(61,58,140,0.95)',
-                color: 'white',
-                fontSize: 11,
-                borderRadius: 6,
-              }}
-            >
-              Шинэ цонхонд нээх
-            </a>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-3 text-center">
-            <div className="w-20 h-20 rounded-xl bg-gray-100 flex items-center justify-center">
-              <span className="text-3xl">📎</span>
-            </div>
-            <p className="text-sm font-semibold text-gray-700 m-0">{attachment.file_name}</p>
-            <a
-              href={attachment.file_url}
-              target="_blank"
-              rel="noopener"
-              className="px-4 py-2 bg-[#3d3a8c] text-white rounded-lg text-xs
-                         hover:bg-[#2d2a7c] no-underline"
-            >
-              Татах
-            </a>
-          </div>
-        )}
+        <img
+          src={attachment.file_url}
+          alt={attachment.file_name}
+          crossOrigin="anonymous"
+          style={{
+            maxWidth:  '100%',
+            maxHeight: '100%',
+            objectFit: 'contain',  // харьцаа хадгална, тасрахгүй
+          }}
+        />
       </div>
 
       <PageFooter
         pageNum={pageIndex + 1}
         totalPages={pageCount}
-        qrCodeUrl={qrCodeUrl}
-        contractNumber={contractNumber}
+        qrCodeUrl={null}
+        contractNumber={null}
         brandName={brandName}
-        isLast={isLast}
       />
     </div>
   )
 }
 
 // ── Footer ────────────────────────────────────────────
-function PageFooter({ pageNum, totalPages, qrCodeUrl, contractNumber, brandName, isLast }) {
+// QR / дугаар нь qrCodeUrl эсвэл contractNumber дамжуулагдсан үед л гарна
+// (= зөвхөн үндсэн агуулгын сүүлийн хуудас). Зураг хуудаснууд null дамжуулна.
+function PageFooter({ pageNum, totalPages, qrCodeUrl, contractNumber }) {
   return (
     <div
       className="absolute left-0 right-0 bottom-0"
@@ -378,17 +345,17 @@ function PageFooter({ pageNum, totalPages, qrCodeUrl, contractNumber, brandName,
           PAGE {pageNum} OF {totalPages}
         </div>
 
-        {/* QR (зөвхөн сүүлийн хуудсанд) — Figma size 53×53 */}
+        {/* QR / дугаар — зөвхөн дамжуулагдсан үед (үндсэн сүүлийн хуудас) */}
         <div style={{ width: '53px', height: '53px' }}
              className="flex items-center justify-end">
-          {isLast && qrCodeUrl ? (
+          {qrCodeUrl ? (
             <img
               src={qrCodeUrl}
               alt="Verification QR"
               className="rounded"
               style={{ width: '53px', height: '53px' }}
             />
-          ) : isLast && contractNumber ? (
+          ) : contractNumber ? (
             <span className="text-[8px] text-gray-400 font-mono">
               {contractNumber}
             </span>
