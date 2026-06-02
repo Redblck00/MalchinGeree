@@ -12,7 +12,7 @@ const ADMIN_ROUTES = ['/admin']
 // Бүгд харж болно — нэвтрэхгүй ч болно
 // /templates, /, /invite/*  → public
 
-export function middleware(request) {
+export function proxy(request) {
   const { pathname } = request.nextUrl
   const token = request.cookies.get('token')?.value
 
