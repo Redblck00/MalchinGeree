@@ -1,17 +1,49 @@
-const nodemailer = require('nodemailer')
+// ── Имэйл илгээх — Brevo HTTP API (порт 443) ──────────────
+// Render free instance гадагшаа SMTP порт (25/465/587) хаадаг тул
+// nodemailer/SMTP ажиллахгүй. Иймд HTTPS дээр суурилсан Brevo API ашиглана.
+//   Sender (EMAIL_FROM) нь Brevo дээр баталгаажсан байх ёстой.
+//   https://app.brevo.com → Senders & IP → шинэ sender нэмж баталгаажуул.
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email'
+const BREVO_API_KEY = process.env.BREVO_API_KEY
+const FROM_EMAIL    = process.env.EMAIL_FROM || process.env.EMAIL_USER
+const FROM_NAME     = 'Цахим Гэрээ'
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-})
+// Дотоод helper — нэг имэйл илгээнэ. SMTP-гүй, HTTP POST.
+const sendMail = async ({ to, subject, html }) => {
+  if (!BREVO_API_KEY) throw new Error('BREVO_API_KEY тохируулагдаагүй байна')
+  if (!FROM_EMAIL)    throw new Error('EMAIL_FROM (sender) тохируулагдаагүй байна')
+
+  // 15 секундын дотор хариу ирэхгүй бол таслана (хэт удаан өлгөлдөхөөс сэргийлэх)
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 15000)
+  try {
+    const res = await fetch(BREVO_API_URL, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'accept':       'application/json',
+        'content-type': 'application/json',
+        'api-key':      BREVO_API_KEY,
+      },
+      body: JSON.stringify({
+        sender:      { name: FROM_NAME, email: FROM_EMAIL },
+        to:          [{ email: to }],
+        subject,
+        htmlContent: html,
+      }),
+    })
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '')
+      throw new Error(`Имэйл илгээхэд алдаа (${res.status}): ${errText}`)
+    }
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 // OTP код илгээх
 const sendOtpEmail = async (email, code) => {
-  await transporter.sendMail({
-    from:    `"Цахим Гэрээ" <${process.env.EMAIL_USER}>`,
+  await sendMail({
     to:      email,
     subject: 'Баталгаажуулах OTP код',
     html: `
@@ -32,8 +64,7 @@ const sendOtpEmail = async (email, code) => {
 const sendInviteEmail = async ({ to, contractTitle, inviteUrl, senderName, customSubject }) => {
   const subject = (customSubject || '').trim()
     || `${senderName} таныг гэрээнд урьж байна`
-  await transporter.sendMail({
-    from:    `"Цахим Гэрээ" <${process.env.EMAIL_USER}>`,
+  await sendMail({
     to,
     subject,
     html: `
@@ -91,8 +122,7 @@ const sendContractEventEmail = async ({ to, contractTitle, actorName, eventType,
         </div>
       ` : ''
 
-  await transporter.sendMail({
-    from:    `"Цахим Гэрээ" <${process.env.EMAIL_USER}>`,
+  await sendMail({
     to,
     subject: subjects[eventType] || `"${contractTitle}" гэрээний шинэчлэл`,
     html: `
@@ -125,8 +155,7 @@ const sendSignOtpEmail = async (email, code, contractTitle) => {
         .replace(/"/g, '&quot;')
     : 'Гэрээ'
 
-  await transporter.sendMail({
-    from:    `"Цахим Гэрээ" <${process.env.EMAIL_USER}>`,
+  await sendMail({
     to:      email,
     subject: 'Гарын үсэг баталгаажуулах код',
     html: `

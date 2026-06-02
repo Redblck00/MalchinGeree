@@ -15,7 +15,7 @@ const register = async (req, res) => {
       return res.status(400).json({ message: 'Бүх талбарыг бөглөнө үү' })
     }
 
-    if (typeof password !== 'string' || password.length < 6 || password.lngth > 72) {
+    if (typeof password !== 'string' || password.length < 6 || password.length > 72) {
       return res.status(400).json({ message: 'Нууц үг 6-72 тэмдэгттэй байх ёстой' })
     }
 
