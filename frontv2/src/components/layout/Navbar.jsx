@@ -152,9 +152,8 @@ export default function Navbar() {
             </span>
           </Link>
 
-          {/* ── ДУНД: Floating nav pill (md+) ────────────── */}
-          <nav className={`hidden md:flex items-center gap-0.5 px-1.5 py-1 rounded-full
-                            transition-all ${pillBg}`}>
+          {/* ── ДУНД: Nav линкүүд (md+) — pill background-гүй ── */}
+          <nav className="hidden md:flex items-center gap-0.5 px-1.5 py-1 rounded-full transition-all">
             {navLinks.map((link) => {
               const active = isActive(link.href)
               const linkClass = active

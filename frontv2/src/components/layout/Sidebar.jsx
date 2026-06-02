@@ -137,7 +137,7 @@ function UserSidebar({ pathname, searchParams, user, onLogout }) {
           lg:sticky lg:top-0 lg:shrink-0 lg:h-screen lg:translate-x-0
           ${collapsed ? 'lg:w-16' : 'lg:w-60'}
 
-          fixed top-0 left-0 bottom-0 z-50 w-72 max-w-[85vw]
+          fixed top-0 left-0 bottom-0 z-50 lg:z-auto w-72 max-w-[85vw]
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
         style={{
