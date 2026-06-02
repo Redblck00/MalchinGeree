@@ -36,7 +36,9 @@ export default function LoginForm({ onSuccess }) {
       else onSuccess?.()
     } catch (err) {
       console.error('Login error:', err)
-      setError('Нэвтрэхэд алдаа гарлаа')
+      // authError нь authStore-д backend-ээс ирсэн жинхэнэ message-аар set хийгдсэн.
+      // (err.response.data.message → "Утас эсвэл нууц үг буруу" гм)
+      // Энд local setError-аар overwrite хийвэл хэрэглэгч жинхэнэ шалтгааныг харахгүй.
     } finally {
       setLoading(false)
     }
