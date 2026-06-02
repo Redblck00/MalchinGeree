@@ -24,17 +24,36 @@ app.set('trust proxy', 1)
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' }, contentSecurityPolicy: false }))
 app.use(express.json({ limit: '10mb' }))
 // FRONTEND_URL нь comma-аар тусгаарласан олон origin байж болно
-// (production + preview deployment + localhost зэрэг)
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
+// (production + preview deployment + localhost зэрэг).
+// Wildcard `*` дэмжинэ — Vercel preview-ийн hash-тай URL-уудтай тааруулна.
+//   Жишээ: https://herds-contract-*-redblck00s-projects.vercel.app
+// `*` нь "." -ээс бусад тэмдэгтийг таарна (subdomain leak хориглох).
+const allowedOriginPatterns = (process.env.FRONTEND_URL || 'http://localhost:3000')
   .split(',')
-  .map((s) => s.trim())
+  .map((s) => s.trim().replace(/\/$/, ''))   // trailing "/" арилгана
   .filter(Boolean)
+  .map((pat) => {
+    if (!pat.includes('*')) return pat        // яг таарах URL
+    const regex = new RegExp(
+      '^' +
+        pat
+          .replace(/[.+?^${}()|[\]\\]/g, '\\$&')  // regex meta-char escape
+          .replace(/\*/g, '[^.]*') +              // * → "." -ээс бусад
+        '$',
+    )
+    return regex
+  })
+
+const isAllowedOrigin = (origin) =>
+  allowedOriginPatterns.some((p) =>
+    typeof p === 'string' ? p === origin : p.test(origin),
+  )
 
 app.use(cors({
   origin: (origin, cb) => {
     // Server-to-server, curl, Postman бүгд origin-гүй
     if (!origin) return cb(null, true)
-    if (allowedOrigins.includes(origin)) return cb(null, true)
+    if (isAllowedOrigin(origin)) return cb(null, true)
     cb(new Error('CORS блок: ' + origin))
   },
   credentials: true,
