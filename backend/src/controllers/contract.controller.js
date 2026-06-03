@@ -10,6 +10,20 @@ const { notify, notifyParticipants } = require('../utils/notifier')
 const { addBlock }                   = require('../utils/blockchain')
 const { generateQRDataUrl }          = require('../utils/qrcode')
 const { safeErrorMessage }           = require('../utils/errors')
+// ── Public frontend base URL ─────────────────────────────
+// FRONTEND_URL нь CORS-д зориулж comma-аар тусгаарласан олон origin
+// (production + Vercel preview wildcard + localhost) байж болно. Гэвч
+// имэйлийн линк / QR-д ганц бодит хаяг хэрэгтэй. Тиймээс эхний wildcard
+// биш, бодит хаягийг сонгож авна (trailing "/" арилгана).
+const publicFrontendUrl = () => {
+  const raw = process.env.FRONTEND_URL || 'http://localhost:3000'
+  const first = raw
+    .split(',')
+    .map((s) => s.trim().replace(/\/$/, ''))
+    .filter((s) => s && !s.includes('*'))[0]
+  return first || 'http://localhost:3000'
+}
+
 // ── Invitation token tools
 const generateInviteToken = () => crypto.randomBytes(32).toString('hex')
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex')
@@ -279,7 +293,7 @@ const getContractById = async (req, res) => {
           blockTxId = block.block_id
         }
 
-        const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify/${id}`
+        const verifyUrl = `${publicFrontendUrl()}/verify/${id}`
         const qrDataUrl = await generateQRDataUrl(verifyUrl)
 
         await repo.updateVersionBlockchainBackfill({
@@ -543,7 +557,7 @@ const sendContract = async (req, res) => {
     for (const e of emailQueue) {
       // Token-г URL fragment-д (# дараа) тавьсанаар Referer / server лог /
       // Slack OG preview гэх мэт газруудад token leak хийгдэхгүй.
-      const inviteUrl = `${process.env.FRONTEND_URL}/invite#token=${e.token}`
+      const inviteUrl = `${publicFrontendUrl()}/invite#token=${e.token}`
       await sendInviteEmail({
         to: e.to,
         contractTitle: contract.title,
@@ -700,7 +714,7 @@ const signContract = async (req, res) => {
     // Эсрэг талын user_id + email-г олж IN_APP + EMAIL хосоор мэдэгдэх
     const otherSideRole = part.role === 'CREATOR' ? 'COUNTERPARTY' : 'CREATOR'
     const other = await repo.findParticipantContactByRole(id, otherSideRole)
-    const contractUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/contracts/${id}`
+    const contractUrl = `${publicFrontendUrl()}/dashboard/contracts/${id}`
 
     if (other?.user_id) {
       await notify({
@@ -812,7 +826,7 @@ const confirmContract = async (req, res) => {
         const block = await addBlock(id, ver.rendered_hash)
 
         // 2. Public verification URL → QR
-        const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify/${id}`
+        const verifyUrl = `${publicFrontendUrl()}/verify/${id}`
         const qrDataUrl = await generateQRDataUrl(verifyUrl)
 
         // 3. contract_versions-д blockchain мэдээллийг шинэчлэх
@@ -1049,7 +1063,7 @@ const returnContract = async (req, res) => {
     // ── Нөгөө талд notification (in-app + email) ──────
     const other = await repo.findParticipantContactByRole(id, nextTurn)
     const actorName = `${req.user.last_name} ${req.user.first_name}`.trim()
-    const contractUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/contracts/${id}`
+    const contractUrl = `${publicFrontendUrl()}/dashboard/contracts/${id}`
 
     if (other?.user_id) {
       const baseMessage = hasChanges
