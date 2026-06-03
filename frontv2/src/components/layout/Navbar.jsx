@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useRouter, usePathname } from 'next/navigation'
 import useAuthStore from '@/app/store/authStore'
 import NotificationDropdown from '@/components/layout/NotificationDropdown'
+import UserAvatar from '@/components/common/UserAvatar'
 import {
   FiUser, FiLogOut, FiEdit3, FiGrid, FiMenu, FiX,
 } from 'react-icons/fi'
@@ -117,9 +118,6 @@ export default function Navbar() {
   const fullName = user
     ? `${user.last_name || ''} ${user.first_name || ''}`.trim()
     : ''
-  const initials = user
-    ? `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`
-    : ''
 
   const isActive = (href) =>
     href === '/' ? pathname === '/' : pathname === href || pathname?.startsWith(href + '/')
@@ -195,10 +193,11 @@ export default function Navbar() {
                                     ? 'bg-white/20 backdrop-blur-md border border-white/30 hover:bg-white/30'
                                     : 'bg-gray-50 hover:bg-gray-100'}`}
                     >
-                      <div className="w-7 h-7 rounded-full bg-emerald-600 text-white
-                                      flex items-center justify-center font-semibold text-xs uppercase">
-                        {initials || '👤'}
-                      </div>
+                      <UserAvatar
+                        src={user?.profile_image_url}
+                        name={fullName}
+                        className="w-7 h-7 text-xs"
+                      />
                       <span className={`text-sm font-medium hidden lg:inline ${textBase}`}>
                         {user?.first_name || 'User'}
                       </span>
@@ -308,10 +307,11 @@ export default function Navbar() {
             {isAuthenticated && (
               <div className="px-5 py-4 border-b border-gray-100 shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-emerald-600 text-white
-                                  flex items-center justify-center font-semibold text-sm uppercase shrink-0">
-                    {initials || '👤'}
-                  </div>
+                  <UserAvatar
+                    src={user?.profile_image_url}
+                    name={fullName}
+                    className="w-10 h-10 text-sm shrink-0"
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-gray-900 m-0 truncate">{fullName}</p>
                     <p className="text-xs text-gray-500 m-0 truncate">{user?.email || user?.phone}</p>

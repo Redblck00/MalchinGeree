@@ -53,5 +53,7 @@ export function proxy(request) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|icons|images|uploads).*)'],
+  // PWA static файлууд (manifest, service worker)-ийг middleware-ээс хасна —
+  // auth логик тэдгээр дээр ажиллах шаардлагагүй.
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|icons|images|uploads|manifest.webmanifest|sw.js).*)'],
 }

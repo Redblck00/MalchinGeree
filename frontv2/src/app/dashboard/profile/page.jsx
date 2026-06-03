@@ -8,6 +8,7 @@ import SignatureModal from '@/components/signature/SignatureModal'
 import ProfileSidebar from '@/components/profile/ProfileSidebar'
 import { Star, ArrowLeft } from 'lucide-react'
 import NotificationDropdown from '@/components/layout/NotificationDropdown'
+import UserAvatar from '@/components/common/UserAvatar'
 import { FiEdit3, FiTrash2 } from 'react-icons/fi'
 const MN_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -143,7 +144,7 @@ export default function ProfilePage() {
           Teal gradient (#5eead4 → цагаан) + illusrationBro.png       */}
       <section className="shrink-0 px-4 sm:px-6 lg:px-8 mb-4 lg:mb-6">
         <div
-          className="rounded-3xl px-5 sm:px-8 lg:px-10 py-5 lg:py-7
+          className="rounded-sm px-5 sm:px-8 lg:px-10 py-5 lg:py-7
                      flex items-center justify-between gap-4 overflow-hidden relative"
           style={{
             background: 'linear-gradient(to right, rgba(94, 234, 212, 0.35), rgba(255, 255, 255, 1))',
@@ -192,9 +193,7 @@ export default function ProfilePage() {
         {/* ── БАРУУН: Signature + Rating (mobile: stacked natural, lg: 50/50 fixed) ── */}
         <div className="flex flex-col gap-4 lg:min-h-0 lg:overflow-hidden">
 
-          {/* ══════════════════════════════════════════════
-              Signature card — mobile: natural height, lg+: flex-1 50%
-              ══════════════════════════════════════════════ */}
+          {/* Signature card — mobile: natural height, lg+: flex-1 50%*/}
           <div className="lg:flex-1 lg:min-h-0">
           <div className="lg:h-full bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm flex flex-col">
 
@@ -239,15 +238,51 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* Body — clickable dashed canvas
-                Mobile: fixed h-52 (canvas) — natural card height
-                Desktop: flex-1 dynamic — canvas wrapper-ийн дагуу өсдөг */}
-            <div className="lg:flex-1 lg:min-h-0 p-4 flex flex-col">
+      
+            <div className="lg:flex-1 lg:min-h-0 p-4 flex flex-col lg:flex-row gap-4">
+
+              {/* Зүүн багана — action товч (дээр) + тайлбар текст (доор) */}
+              <div className="order-2 lg:order-1 shrink-0 lg:w-52 flex flex-col justify-between gap-4">
+                {/* Action товчнууд */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {signatureImg && (
+                    <button
+                      onClick={handleDeleteSignature}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium
+                                 text-red-200 hover:bg-red-50 rounded-lg
+                                 cursor-pointer border-0 bg-transparent transition-colors"
+                    >
+                      <FiTrash2 size={13} />
+                      Устгах
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { setSigMessage(null); setModalOpen(true) }}
+                    className="inline-flex items-center rounded-sm gap-1.5 px-4 py-2
+                               bg-[#068672] hover:bg-[#0fa5a0] text-white
+                               text-sm font-semibold 
+                               cursor-pointer border-0 transition-colors shadow-sm"
+                  >
+                    <FiEdit3 size={14} />
+                    {signatureImg ? 'Солих' : 'Үүсгэх'}
+                  </button>
+                </div>
+
+                {/* Тайлбар текст */}
+                <p className="text-xs text-gray-500 m-0 leading-relaxed">
+                  {signatureImg
+                    ? 'Энэ гарын үсэг таны үүсгэх гэрээнд автоматаар ашиглагдана.'
+                    : 'Нэг удаа хадгалсан гарын үсгээ дараа гэрээ зурахдаа дахин ашиглана.'}
+                </p>
+              </div>
+
+              {/* Баруун — signature canvas (давамгай талбар) */}
               <button
                 type="button"
                 onClick={() => { setSigMessage(null); setModalOpen(true) }}
                 aria-label={signatureImg ? 'Гарын үсэг солих' : 'Гарын үсэг үүсгэх'}
-                className="group w-full h-44 sm:h-52 lg:h-auto lg:flex-1 lg:min-h-0
+                className="group order-1 lg:order-2 lg:flex-1 lg:min-h-0
+                           w-full h-52 sm:h-64 lg:h-auto
                            rounded-2xl border-2 border-dashed border-gray-200
                            hover:border-[#006B35]/40 hover:bg-emerald-50/30
                            bg-gray-50/40 transition-colors cursor-pointer
@@ -268,48 +303,11 @@ export default function ProfilePage() {
                   </div>
                 )}
               </button>
-
-              {/* Footer — тайлбар + action товчнууд (shrink-0: canvas хэмжээтэй өрсөлдөхгүй) */}
-              <div className="shrink-0 flex items-center justify-between gap-3 mt-3 flex-wrap">
-                <p className="text-xs text-gray-500 m-0 max-w-md leading-relaxed">
-                  {signatureImg
-                    ? 'Энэ гарын үсэг таны үүсгэх гэрээнд автоматаар ашиглагдана.'
-                    : 'Нэг удаа хадгалсан гарын үсгээ дараа гэрээ зурахдаа дахин ашиглана.'}
-                </p>
-                <div className="flex items-center gap-2 shrink-0">
-                  {signatureImg && (
-                    <button
-                      onClick={handleDeleteSignature}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium
-                                 text-red-600 hover:bg-red-50 rounded-lg
-                                 cursor-pointer border-0 bg-transparent transition-colors"
-                    >
-                      <FiTrash2 size={13} />
-                      Устгах
-                    </button>
-                  )}
-                  <button
-                    onClick={() => { setSigMessage(null); setModalOpen(true) }}
-                    className="inline-flex items-center gap-1.5 px-5 py-2
-                               bg-[#006B35] hover:bg-[#00582c] text-white
-                               text-sm font-semibold rounded-xl
-                               cursor-pointer border-0 transition-colors shadow-sm"
-                  >
-                    <FiEdit3 size={14} />
-                    {signatureImg ? 'Солих' : 'Үүсгэх'}
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         </div>
-          {/* End signature card wrapper */}
 
-          {/* ══════════════════════════════════════════════
-              Rating card
-              Mobile: natural height (page scroll)
-              Desktop: lg:flex-1 lg:overflow-hidden + internal scroll
-              ══════════════════════════════════════════════ */}
+          {/* //rating cards */}
           <div className="lg:flex-1 lg:min-h-0 bg-white border border-gray-200 rounded-2xl
                           shadow-sm flex flex-col lg:overflow-hidden">
             <div className="shrink-0 flex items-center justify-between gap-2 px-4 sm:px-6 py-4 border-b border-gray-100">
@@ -340,10 +338,12 @@ export default function ProfilePage() {
                          className="border border-gray-100 rounded-2xl p-4 flex flex-col gap-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <div className="w-9 h-9 rounded-full bg-[#006B35] text-white
-                                          flex items-center justify-center text-xs font-bold uppercase">
-                            {((r.rater_last_name?.[0] || '') + (r.rater_first_name?.[0] || '')) || '?'}
-                          </div>
+                          <UserAvatar
+                            src={r.rater_image_url}
+                            name={`${r.rater_last_name || ''} ${r.rater_first_name || ''}`}
+                            className="w-9 h-9 text-xs shrink-0"
+                            fallbackClassName="bg-[#006B35] text-white"
+                          />
                           <div>
                             <p className="text-sm font-semibold text-gray-900 m-0">
                               {`${r.rater_last_name || ''} ${r.rater_first_name || ''}`.trim() || 'Хэрэглэгч'}

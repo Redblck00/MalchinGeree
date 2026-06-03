@@ -9,16 +9,16 @@ import TemplateCard from '@/components/templates/TemplateCard'
 import { TEMPLATE_CARD_GRID } from '@/components/templates/templateGridClasses'
 import NotificationDropdown from '@/components/layout/NotificationDropdown'
 import { FiSearch } from 'react-icons/fi'
-import { Sparkles } from 'lucide-react'
+import { MdSearchOff, MdGridView, MdVerified, MdPersonOutline } from 'react-icons/md'
 
-// ── Filter tabs ────────────────────────────────────────
+// ── Filter tabs (public/templates-тай ижил) ────────────
 // "all"       → бүх загвар
 // "standard"  → системийн стандарт загвар (is_standard = true)
 // "personal"  → захиалгат/хувийн загвар (is_standard = false)
 const FILTERS = [
-  { key: 'all',      label: 'All',      icon: <Sparkles size={14} /> },
-  { key: 'standard', label: 'Standard' },
-  { key: 'personal', label: 'Personal' },
+  { key: 'all',      label: 'Бүгд',     Icon: MdGridView },
+  { key: 'standard', label: 'Стандарт', Icon: MdVerified },
+  { key: 'personal', label: 'Хувийн',   Icon: MdPersonOutline },
 ]
 
 export default function DashboardTemplatesPage() {
@@ -163,46 +163,43 @@ export default function DashboardTemplatesPage() {
       </section>
 
       {/* ══════════════════════════════════════════════
-          3. FILTER PILLS (fixed)
+          3. BODY — босоо filter rail + card grid зэрэгцээ
+          (public/templates-тай ижил layout)
           ══════════════════════════════════════════════ */}
-      <section className="shrink-0 px-4 sm:px-6 lg:px-10 pt-4 sm:pt-6 pb-3 sm:pb-4">
-        <div className="max-w-7xl mx-auto flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto max-w-full
-                          [-ms-overflow-style:none] [scrollbar-width:none]
-                          [&::-webkit-scrollbar]:hidden">
-            {FILTERS.map((f) => {
-              const active = activeFilter === f.key
-              return (
-                <button
-                  key={f.key}
-                  type="button"
-                  onClick={() => setActiveFilter(f.key)}
-                  className={`shrink-0 inline-flex items-center gap-1.5
-                              px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium
-                              transition-all cursor-pointer border whitespace-nowrap
-                              ${active
-                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-200'
-                                : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-300 hover:text-emerald-700'}`}
-                >
-                  {f.icon}
-                  {f.label}
-                </button>
-              )
-            })}
-          </div>
+      <div className="flex-1 min-h-0 w-full max-w-7xl mx-auto
+                      px-4 sm:px-6 lg:px-0 pt-4 sm:pt-6 lg:pt-0
+                      flex flex-col lg:flex-row">
 
-          <span className="text-xs text-gray-500 shrink-0">
-            <span className="font-semibold text-emerald-700">{filtered.length}</span>
-            {' '}загвар олдлоо
+        {/* Filter rail — mobile: хэвтээ текст-таб; lg: босоо sidebar */}
+        <aside className="shrink-0 lg:w-48 border-b lg:border-b-0 lg:border-r border-gray-100
+                          lg:pl-10 lg:pr-6 pb-3 lg:py-8 flex flex-col">
+          <span className="hidden lg:block text-[10px] font-bold uppercase tracking-widest
+                           text-gray-400 mb-3">
+            Загварын төрөл
           </span>
-        </div>
-      </section>
+          <nav className="flex flex-row lg:flex-col gap-3 lg:gap-1 overflow-x-auto no-scrollbar">
+            {FILTERS.map(f => (
+              <FilterTab
+                key={f.key}
+                active={activeFilter === f.key}
+                onClick={() => setActiveFilter(f.key)}
+                Icon={f.Icon}
+              >
+                {f.label}
+              </FilterTab>
+            ))}
+          </nav>
+          <div className="hidden lg:block mt-auto pt-4 text-xs text-gray-400">
+            {loading ? '...' : `${filtered.length} загвар`}
+          </div>
+        </aside>
 
-      {/* ══════════════════════════════════════════════
-          4. CARD GRID — ЗӨВХӨН ЭНЭ ХЭСЭГ SCROLL
-          ══════════════════════════════════════════════ */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 lg:px-10 pb-6 sm:pb-10">
-        <div className="max-w-7xl mx-auto">
+        {/* Card grid — зөвхөн энэ хэсэг scroll */}
+        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar
+                        lg:pl-8 lg:pr-10 py-4 lg:py-8 pb-6 sm:pb-10">
+          <p className="lg:hidden text-xs text-gray-400 m-0 mb-4">
+            {loading ? '...' : `${filtered.length} загвар`}
+          </p>
           {loading ? (
             <LoadingSkeleton />
           ) : filtered.length === 0 ? (
@@ -246,32 +243,23 @@ export default function DashboardTemplatesPage() {
 // SUBCOMPONENTS
 // ══════════════════════════════════════════════════════
 
-// ── Loading skeleton — TemplateCard-той ижил хэмжээ + layout ─────
+// ── Loading skeleton — шинэ TemplateCard-той ижил (accent strip + icon block) ─────
 function LoadingSkeleton() {
   return (
     <div className={`${TEMPLATE_CARD_GRID} pt-2`}>
       {Array.from({ length: 8 }).map((_, i) => (
         <div
           key={i}
-          className="w-52.5 max-w-full aspect-[210/289] justify-self-center bg-white border border-gray-200 rounded-md
-                     flex flex-col overflow-hidden animate-pulse"
+          className="w-52.5 max-w-full aspect-210/289 justify-self-center rounded-xl border border-gray-100
+                     bg-white overflow-hidden flex flex-col animate-pulse"
         >
-          {/* Body — document lines */}
-          <div className="flex-1 px-4 pt-5 pb-3">
-            <div className="h-2 w-1/3 bg-gray-300 rounded-sm mb-4" />
-            <div className="space-y-1.5">
-              <div className="h-1.5 w-full bg-gray-100 rounded-sm" />
-              <div className="h-1.5 w-full bg-gray-100 rounded-sm" />
-              <div className="h-1.5 w-3/5 bg-gray-100 rounded-sm" />
-              <div className="h-1.5 w-full bg-gray-100 rounded-sm" />
-              <div className="h-1.5 w-4/5 bg-gray-100 rounded-sm" />
-            </div>
+          <div className="h-1.5 bg-gray-100" />
+          <div className="flex-1 px-4 pt-4">
+            <div className="w-9 h-9 rounded-lg bg-gray-100 mb-3" />
+            <div className="h-3 bg-gray-100 rounded w-3/4 mb-2" />
+            <div className="h-3 bg-gray-100 rounded w-1/2" />
           </div>
-          {/* Footer placeholder */}
-          <div className="shrink-0 bg-rose-50/70 border-t border-gray-100 px-4 py-2.5">
-            <div className="h-3 w-1/2 bg-gray-200 rounded-sm mb-1.5" />
-            <div className="h-2 w-3/4 bg-gray-100 rounded-sm" />
-          </div>
+          <div className="h-12 bg-gray-50 border-t border-gray-100" />
         </div>
       ))}
     </div>
@@ -284,7 +272,7 @@ function EmptyState({ search }) {
     <div className="flex flex-col items-center justify-center py-12 sm:py-20 text-center px-4">
       <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-400
                       flex items-center justify-center mb-4">
-        <FiSearch size={28} />
+        <MdSearchOff size={30} />
       </div>
       <p className="text-base font-semibold text-gray-900 m-0">
         Загвар олдсонгүй
@@ -295,5 +283,23 @@ function EmptyState({ search }) {
           : 'Сонгосон шүүлтүүрт тохирох загвар алга байна'}
       </p>
     </div>
+  )
+}
+
+// ── Filter таб — дэвсгэргүй, идэвхтэйг зөвхөн текстийн өнгөөр ялгана ──
+function FilterTab({ active, onClick, Icon, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-2 py-1.5 text-sm font-medium text-left
+                  cursor-pointer bg-transparent border-0 whitespace-nowrap transition-colors
+                  ${active
+                    ? 'text-emerald-600 font-semibold'
+                    : 'text-gray-500 hover:text-gray-900'}`}
+    >
+      {Icon && <Icon size={16} />}
+      {children}
+    </button>
   )
 }

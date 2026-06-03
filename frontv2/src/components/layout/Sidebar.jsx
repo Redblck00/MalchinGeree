@@ -4,11 +4,13 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import useAuthStore from '@/app/store/authStore'
+import UserAvatar from '@/components/common/UserAvatar'
 import {
   LayoutDashboard, User, FileText, Send, Inbox, Clock, Archive,
   Bookmark, MessageSquare, LogOut, ChevronsLeft, ChevronsRight,
-  Menu, X,
+  Menu, X, WifiOff,
 } from 'lucide-react'
+import useOfflineStore from '@/app/store/offlineStore'
 
 // Sidebar collapsed/expanded төлвийн localStorage түлхүүр
 const STORAGE_KEY = 'mg.sidebar.collapsed'
@@ -63,6 +65,8 @@ export default function Sidebar() {
 function UserSidebar({ pathname, searchParams, user, onLogout }) {
   const [collapsed,  setCollapsed]  = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const online      = useOfflineStore((s) => s.online)
+  const offlineMode = useOfflineStore((s) => s.offlineMode)
 
   useEffect(() => {
     try {
@@ -98,9 +102,6 @@ function UserSidebar({ pathname, searchParams, user, onLogout }) {
 
   const fullName = user
     ? `${user.last_name || ''} ${user.first_name || ''}`.trim()
-    : ''
-  const initials = user
-    ? `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase()
     : ''
 
   return (
@@ -160,6 +161,17 @@ function UserSidebar({ pathname, searchParams, user, onLogout }) {
               МалчныГэрээ
             </span>
           )}
+          {/* Online/offline төлөв — жижиг цэг */}
+          <span
+            title={
+              offlineMode ? 'Offline горим идэвхтэй'
+                : online   ? 'Онлайн' : 'Сүлжээгүй'
+            }
+            className={`shrink-0 w-2 h-2 rounded-full ${
+              offlineMode ? 'bg-amber-500'
+                : online   ? 'bg-emerald-500' : 'bg-gray-300'
+            }`}
+          />
         </Link>
         {!collapsed && (
           <CollapseButton onClick={toggle} icon={<ChevronsLeft size={16} />} label="Хумих" />
@@ -215,6 +227,10 @@ function UserSidebar({ pathname, searchParams, user, onLogout }) {
                    active={pathname.startsWith('/dashboard/templates')}>
             Загвар
           </NavItem>
+          <NavItem icon={WifiOff} href="/dashboard/offline" collapsed={collapsed}
+                   active={pathname.startsWith('/dashboard/offline')}>
+            Offline горим
+          </NavItem>
         </NavGroup>
 
         <NavGroup label="Хэрэгсэл" collapsed={collapsed}>
@@ -233,10 +249,11 @@ function UserSidebar({ pathname, searchParams, user, onLogout }) {
               className="flex items-center gap-2.5 flex-1 min-w-0 rounded-md
                          hover:bg-gray-50 transition-colors px-1.5 py-1"
             >
-              <div className="w-9 h-9 rounded-full bg-emerald-600 text-white
-                              flex items-center justify-center font-semibold text-xs uppercase shrink-0">
-                {initials || <User size={16} />}
-              </div>
+              <UserAvatar
+                src={user?.profile_image_url}
+                name={fullName}
+                className="w-9 h-9 text-xs shrink-0"
+              />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 m-0 truncate">
                   {fullName || 'Хэрэглэгч'}
@@ -263,11 +280,13 @@ function UserSidebar({ pathname, searchParams, user, onLogout }) {
               href="/dashboard/profile"
               aria-label={fullName || 'Профайл'}
               title={fullName || 'Профайл'}
-              className="w-9 h-9 rounded-full bg-emerald-600 text-white
-                         flex items-center justify-center font-semibold text-xs uppercase
-                         hover:ring-2 hover:ring-emerald-200 transition-shadow"
+              className="rounded-full hover:ring-2 hover:ring-emerald-200 transition-shadow"
             >
-              {initials || <User size={16} />}
+              <UserAvatar
+                src={user?.profile_image_url}
+                name={fullName}
+                className="w-9 h-9 text-xs"
+              />
             </Link>
             <button
               onClick={onLogout}

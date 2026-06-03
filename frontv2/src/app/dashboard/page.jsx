@@ -1,41 +1,29 @@
 'use client'
-import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import {
   PieChart, Pie, Cell,
   BarChart, Bar,
   AreaChart, Area,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts'
-import { TrendingUp, TrendingDown } from 'lucide-react'
 import {
-  MdShoppingCart, MdPaid, MdDescription, MdShowChart,
-  MdInsertChart, MdTrendingUp, MdStar, MdEmojiEvents,
+  MdShoppingCart, MdPaid, MdShowChart, MdTrendingUp, MdStar,
 } from 'react-icons/md'
-import {
-  GiSheep, GiGoat, GiCow, GiHorseHead, GiCamel, GiPawPrint,
-} from 'react-icons/gi'
-
-// ── Livestock icon map ─────────────────────────────────
-const LIVESTOCK_ICON = {
-  'хонь':   GiSheep,    'sheep':  GiSheep,
-  'ямаа':   GiGoat,     'goat':   GiGoat,
-  'үхэр':   GiCow,      'cattle': GiCow,
-  'адуу':   GiHorseHead,'horse':  GiHorseHead,
-  'тэмээ':  GiCamel,    'camel':  GiCamel,
-}
-const iconOf = (type) => {
-  const k = (type || '').toLowerCase().trim()
-  for (const key of Object.keys(LIVESTOCK_ICON)) {
-    if (k.includes(key)) return LIVESTOCK_ICON[key]
-  }
-  return GiPawPrint
-}
-const LivestockIcon = ({ type, size = 18, className = '' }) => {
-  const Icon = iconOf(type)
-  return <Icon size={size} className={className} />
-}
+import { GiSheep } from 'react-icons/gi'
+import { formatMoney, compactMoney } from '@/lib/dashboardFormat'
+import KpiCard from '@/components/dashboard/KpiCard'
+import ChartBox from '@/components/dashboard/ChartBox'
+import PeriodPills from '@/components/dashboard/PeriodPills'
+import RoleTab from '@/components/dashboard/RoleTab'
+import AnalyticsPanel from '@/components/dashboard/AnalyticsPanel'
+import RankBadge from '@/components/dashboard/RankBadge'
+import Avatar from '@/components/dashboard/Avatar'
+import EmptyState from '@/components/dashboard/EmptyState'
+import LivestockIcon from '@/components/dashboard/LivestockIcon'
+import PriceLineTooltip from '@/components/dashboard/PriceLineTooltip'
+import RecentTransactions from '@/components/dashboard/RecentTransactions'
 
 // ── Period helpers ─────────────────────────────────────
 function formatPeriod(date, period) {
@@ -45,15 +33,6 @@ function formatPeriod(date, period) {
   if (period === 'year')    return `${y}`
   if (period === 'quarter') return `${y} Q${Math.floor(d.getMonth() / 3) + 1}`
   return `${y}.${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
-const formatMoney = (v) => v ? `₮${Number(v).toLocaleString('mn-MN')}` : '₮0'
-const compactMoney = (v) => {
-  if (!v) return '₮0'
-  const n = Number(v)
-  if (n >= 1_000_000) return `₮${(n / 1_000_000).toFixed(1)}сая`
-  if (n >= 1_000)     return `₮${(n / 1_000).toFixed(0)}мян`
-  return `₮${n}`
 }
 
 // Pie chart-д тус бүрд тод өнгө — ногоон gradient тус бүртэй зөрчил үүсэхгүйн тулд
@@ -151,11 +130,30 @@ export default function DashboardPage() {
 
   // Bar data: period × count + amount (ASC ордсон → шууд timeline)
   const barData = useMemo(() => {
-    return (data?.by_period || []).map(p => ({
+    const rows = (data?.by_period || []).map(p => ({
       period: formatPeriod(p.period, period),
       count:  p.count,
       amount: p.amount,
     }))
+
+    // Сараар шүүх үед — зөвхөн борлуулалт хийсэн сар биш, ЖИЛИЙН 12 САРЫГ
+    // бүгдийг харуулна (борлуулалтгүй сар = 0). Ингэснээр цөөн баганатай үед
+    // chart хэт өргөссөн харагдахаас сэргийлж, 12 сараар жигд хуваагдана.
+    if (period === 'month') {
+      // Өгөгдлийн хамгийн сүүлийн жилийг сонгоно (байхгүй бол одоогийн жил)
+      const years = (data?.by_period || [])
+        .map(p => new Date(p.period).getFullYear())
+        .filter(y => !Number.isNaN(y))
+      const year = years.length ? Math.max(...years) : new Date().getFullYear()
+
+      const byKey = new Map(rows.map(r => [r.period, r]))
+      return Array.from({ length: 12 }, (_, i) => {
+        const key = `${year}.${String(i + 1).padStart(2, '0')}`
+        return byKey.get(key) || { period: key, count: 0, amount: 0 }
+      })
+    }
+
+    return rows
   }, [data, period])
 
   // Weekday data — `data.recent` гүйлгээнүүдээс client-side group хийж
@@ -239,7 +237,7 @@ export default function DashboardPage() {
           <p className="text-sm text-gray-500 mt-1 m-0">Таны малын худалдааны статистик</p>
         </div>
 
-        <div className="w-full sm:w-auto bg-white rounded-xl border border-gray-200 p-1 flex gap-1 shrink-0">
+        <div className="w-full sm:w-auto bg-white  border border-gray-200 p-1 flex gap-1 shrink-0">
           <RoleTab active={role === 'buyer'}  onClick={() => setRole('buyer')} className="flex-1 sm:flex-none justify-center">
             <MdShoppingCart size={16} className="shrink-0" /> <span className="truncate">Худалдан авсан</span>
           </RoleTab>
@@ -300,12 +298,20 @@ export default function DashboardPage() {
               <BarChart data={displayBarData} margin={{ top: 10, right: 8, left: -12, bottom: 0 }}>
                 <defs>
                   <linearGradient id="barGreenLg" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%"   stopColor="#22c55e" stopOpacity={0.95} />
-                    <stop offset="100%" stopColor="#15803d" stopOpacity={0.9} />
+                    {/* Teal → teal-уусмал цагаан (#e8fcf9) градиент */}
+                    <stop offset="0%"   stopColor="#2dd4bf" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#e8fcf9" stopOpacity={1} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#047857' }} stroke="#d1fae5" />
+                <XAxis
+                  dataKey="period"
+                  tick={{ fontSize: 11, fill: '#047857' }}
+                  stroke="#d1fae5"
+                  interval={0}
+                  // Сараар үед 12 баганад жилийн угтвар давтахгүй — зөвхөн "MM"
+                  tickFormatter={(v) => (period === 'month' ? String(v).split('.')[1] : v)}
+                />
                 <YAxis tick={{ fontSize: 11, fill: '#047857' }} stroke="#d1fae5" allowDecimals={false} />
                 <Tooltip
                   formatter={(value, name) =>
@@ -320,7 +326,13 @@ export default function DashboardPage() {
                   }}
                   labelStyle={{ color: '#047857', fontFamily: 'monospace' }}
                 />
-                <Bar dataKey="count" fill="url(#barGreenLg)" radius={[6, 6, 0, 0]} />
+                <Bar
+                  dataKey="count"
+                  fill="url(#barGreenLg)"
+                  stroke="#5eead4"
+                  strokeWidth={1}
+                  radius={[6, 6, 0, 0]}
+                />
               </BarChart>
             </ChartBox>
             {topPeriod && topPeriod.count > 0 && (
@@ -531,323 +543,6 @@ export default function DashboardPage() {
           </div>
         </>
       )}
-    </div>
-  )
-}
-
-// ══════════════════════════════════════════════════════
-// SUBCOMPONENTS (mobile-friendly helpers)
-// ══════════════════════════════════════════════════════
-
-// ResizeObserver-оор parent-ийн хэмжээг хэмжсэний дараа л Recharts-ыг
-// mount хийнэ. Ингэснээр "width(-1) and height(-1)" warning гарахгүй.
-function ChartBox({ children, className = 'h-52 sm:h-64 w-full' }) {
-  const ref = useRef(null)
-  const [ready, setReady] = useState(false)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const ro = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect
-      if (width > 0 && height > 0) setReady(true)
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-  return (
-    <div ref={ref} className={className}>
-      {ready && (
-        <ResponsiveContainer width="100%" height="100%">
-          {children}
-        </ResponsiveContainer>
-      )}
-    </div>
-  )
-}
-
-// KPI Card — linear ногоон gradient + цагаан текст
-function PeriodPills({ options, value, onChange }) {
-  return (
-    <div className="flex gap-1 p-1 bg-emerald-50 border border-emerald-200
-                    overflow-x-auto max-w-full [-ms-overflow-style:none] [scrollbar-width:none]
-                    [&::-webkit-scrollbar]:hidden">
-      {options.map(opt => (
-        <button
-          key={opt.value}
-          type="button"
-          onClick={() => onChange(opt.value)}
-          className={`shrink-0 px-2.5 sm:px-3 py-1.5 text-[10px] sm:text-[11px] font-mono uppercase tracking-wider
-                      transition-all cursor-pointer border-0 whitespace-nowrap
-                      ${value === opt.value
-                        ? 'bg-emerald-600 text-white font-bold'
-                        : 'bg-transparent text-emerald-700 hover:bg-emerald-100'}`}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function RecentTransactions({ rows, role, onOpen }) {
-  const otherLabel = role === 'buyer' ? 'Худалдагч' : 'Худалдан авагч'
-
-  return (
-    <>
-      {/* Mobile: card list */}
-      <ul className="md:hidden flex flex-col gap-2 -mx-1">
-        {rows.map(r => {
-          const otherName = [r.other_last_name, r.other_first_name].filter(Boolean).join(' ') || '—'
-          return (
-            <li key={r.transaction_id}>
-              <button
-                type="button"
-                onClick={() => onOpen(r.contract_id)}
-                className="w-full text-left p-3 rounded-lg border border-gray-100
-                           hover:bg-gray-50 active:bg-gray-100 transition-colors cursor-pointer"
-              >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="inline-flex items-center gap-1.5 min-w-0">
-                    <LivestockIcon type={r.livestock_type} size={18} className="text-emerald-700 shrink-0" />
-                    <span className="capitalize font-semibold text-gray-900 truncate">{r.livestock_type}</span>
-                  </span>
-                  <span className="text-sm font-bold text-gray-900 shrink-0">{r.count} толгой</span>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
-                  <span>{new Date(r.transaction_date).toLocaleDateString('mn-MN')}</span>
-                  <span className="font-semibold text-gray-700">{formatMoney(r.total_amount)}</span>
-                </div>
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                  <span className="text-gray-600">
-                    <span className="text-gray-400">{otherLabel}: </span>{otherName}
-                  </span>
-                  <span className="text-emerald-700 font-mono">{r.contract_number}</span>
-                </div>
-              </button>
-            </li>
-          )
-        })}
-      </ul>
-
-      {/* Desktop: table */}
-      <div className="hidden md:block overflow-x-auto -mx-4 sm:-mx-5">
-        <table className="w-full text-sm min-w-[36rem]">
-          <thead>
-            <tr className="text-xs text-gray-400 uppercase">
-              <th className="text-left px-4 sm:px-5 py-2 font-medium">Огноо</th>
-              <th className="text-left px-2 py-2 font-medium">Мал</th>
-              <th className="text-right px-2 py-2 font-medium">Тоо</th>
-              <th className="text-right px-2 py-2 font-medium">Үнэ</th>
-              <th className="text-left px-2 py-2 font-medium">{otherLabel}</th>
-              <th className="text-left px-4 sm:px-5 py-2 font-medium">Гэрээ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(r => {
-              const otherName = [r.other_last_name, r.other_first_name].filter(Boolean).join(' ') || '—'
-              return (
-                <tr
-                  key={r.transaction_id}
-                  onClick={() => onOpen(r.contract_id)}
-                  className="border-t border-gray-100 cursor-pointer hover:bg-gray-50"
-                >
-                  <td className="px-4 sm:px-5 py-3 text-gray-500 text-xs">
-                    {new Date(r.transaction_date).toLocaleDateString('mn-MN')}
-                  </td>
-                  <td className="px-2 py-3 text-gray-900">
-                    <span className="inline-flex items-center gap-1.5">
-                      <LivestockIcon type={r.livestock_type} size={16} className="text-emerald-700" />
-                      <span className="capitalize">{r.livestock_type}</span>
-                    </span>
-                  </td>
-                  <td className="px-2 py-3 text-right font-semibold text-gray-900">{r.count}</td>
-                  <td className="px-2 py-3 text-right text-gray-700">{formatMoney(r.total_amount)}</td>
-                  <td className="px-2 py-3 text-gray-700">{otherName}</td>
-                  <td className="px-4 sm:px-5 py-3 text-xs text-emerald-700 font-mono">{r.contract_number}</td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </>
-  )
-}
-
-function KpiCard({ label, value, unit, icon }) {
-  return (
-    <div className="relative overflow-hidden rounded-2xl p-4 sm:p-5 shadow-sm
-                    bg-linear-to-br from-emerald-400 via-emerald-500 to-emerald-700
-                    text-white">
-      {/* arka decorative circle */}
-      <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/10" />
-      <div className="absolute -right-2 -bottom-8 w-20 h-20 rounded-full bg-white/5" />
-
-      <div className="relative flex items-start justify-between mb-2">
-        <span className="w-11 h-11 rounded-xl flex items-center justify-center
-                         bg-white/20 backdrop-blur-sm text-white">
-          {icon}
-        </span>
-      </div>
-      <p className="relative text-xl sm:text-2xl font-bold m-0">
-        {value}
-        {unit && <span className="text-sm font-normal text-white/80 ml-1">{unit}</span>}
-      </p>
-      <p className="relative text-xs text-white/90 mt-1 m-0">{label}</p>
-    </div>
-  )
-}
-
-function RoleTab({ active, onClick, children, className = '' }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors cursor-pointer border-0
-                  inline-flex items-center gap-1.5 min-w-0
-                  ${active
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-transparent text-gray-600 hover:bg-gray-50'}
-                  ${className}`}
-    >
-      {children}
-    </button>
-  )
-}
-
-// ── PriceLineTooltip ───────────────────────────────────
-// Line chart-ын custom tooltip — Figma design-аас санаа авсан.
-// Header: period label + (prev → curr) trend % badge (up/down arrow + color)
-// Body: цуврал тус бүрд (өнгөт цэг + name + value) мөр.
-function PriceLineTooltip({ active, payload, label, lineData, trendTypes }) {
-  if (!active || !payload || !payload.length) return null
-
-  // Хувийн өөрчлөлт — өмнөх period-тэй харьцуулна
-  const idx = lineData.findIndex(r => r.period === label)
-  const prev = idx > 0 ? lineData[idx - 1] : null
-  const sumOf = (row) => trendTypes.reduce((s, t) => s + (Number(row?.[t]) || 0), 0)
-  const currTotal = sumOf(lineData[idx] || {})
-  const prevTotal = sumOf(prev)
-  const trendPct = prevTotal > 0 ? ((currTotal - prevTotal) / prevTotal) * 100 : null
-  const trendUp  = (trendPct ?? 0) >= 0
-  const TrendIcon = trendUp ? TrendingUp : TrendingDown
-
-  return (
-    <div className="bg-white rounded-2xl shadow-xl border border-gray-100 px-4 py-3 min-w-52.5">
-      {/* Header: label + trend % */}
-      <div className="flex items-center justify-between gap-3 mb-2.5">
-        <span className="text-sm font-bold text-gray-900">{label}</span>
-        {trendPct != null && (
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold
-                            ${trendUp ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-            <TrendIcon size={11} />
-            {Math.abs(trendPct).toFixed(0)}%
-          </span>
-        )}
-      </div>
-
-      {/* Series rows */}
-      <div className="flex flex-col gap-1.5">
-        {payload.map((p, i) => (
-          <div key={i} className="flex items-center justify-between gap-6">
-            <span className="flex items-center gap-2 min-w-0">
-              <span
-                className="w-2 h-2 rounded-full shrink-0"
-                style={{ background: p.color }}
-              />
-              <span className="text-[13px] text-gray-600 capitalize truncate">{p.name}</span>
-            </span>
-            <span className="text-[13px] font-bold text-gray-900 shrink-0">
-              {formatMoney(p.value)}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ── AnalyticsPanel ─────────────────────────────────────
-// Admin reports/visits-ийн Panel-ийг light theme-д адаптласан хувилбар.
-// 4 буланд жижиг angle bracket-уудтай (analytics dashboard "control center" feel).
-// font-mono header tracking-wider — admin-той ижил typography хэв маяг.
-function AnalyticsPanel({ title, subtitle, action, children, className = '' }) {
-  return (
-    // min-w-0 — Recharts ResponsiveContainer grid item-д width(-1) bug-ыг засах
-    <div className={`relative bg-white border border-emerald-200 p-4 sm:p-5 shadow-sm min-w-0 ${className}`}>
-      {/* Corner marks — 4 буланд */}
-      <div aria-hidden className="absolute top-0 left-0 w-2.5 h-2.5 border-t-2 border-l-2 border-emerald-500" />
-      <div aria-hidden className="absolute top-0 right-0 w-2.5 h-2.5 border-t-2 border-r-2 border-emerald-500" />
-      <div aria-hidden className="absolute bottom-0 left-0 w-2.5 h-2.5 border-b-2 border-l-2 border-emerald-500" />
-      <div aria-hidden className="absolute bottom-0 right-0 w-2.5 h-2.5 border-b-2 border-r-2 border-emerald-500" />
-
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-3 sm:mb-4 gap-3 sm:gap-4">
-        <div className="min-w-0">
-          <h2 className="text-xs sm:text-sm font-bold text-emerald-900 m-0 font-mono uppercase tracking-wider">
-            {title}
-          </h2>
-          {subtitle && (
-            <p className="text-[10px] sm:text-[11px] text-emerald-700/60 mt-0.5 m-0 leading-snug">{subtitle}</p>
-          )}
-        </div>
-        {action && <div className="w-full sm:w-auto sm:max-w-[100%] shrink-0">{action}</div>}
-      </div>
-      {children}
-    </div>
-  )
-}
-
-function RankBadge({ rank }) {
-  const colors = {
-    1: 'bg-linear-to-br from-yellow-300 to-yellow-500 text-yellow-900',
-    2: 'bg-linear-to-br from-gray-200 to-gray-400 text-gray-700',
-    3: 'bg-linear-to-br from-orange-200 to-orange-400 text-orange-800',
-  }
-  const isTop = rank <= 3
-  return (
-    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0
-                       ${colors[rank] || 'bg-gray-100 text-gray-500'}`}>
-      {isTop ? <MdEmojiEvents size={14} /> : rank}
-    </span>
-  )
-}
-
-function Avatar({ url, name }) {
-  if (url) {
-    return (
-      <img
-        src={url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000'}/${url}`}
-        alt={name}
-        className="w-9 h-9 rounded-full object-cover shrink-0 border border-gray-200"
-      />
-    )
-  }
-  const initials = name.split(' ').map(s => s[0]).join('').slice(0, 2).toUpperCase()
-  return (
-    <span className="w-9 h-9 rounded-full flex items-center justify-center
-                     bg-emerald-100 text-emerald-700 font-semibold text-xs shrink-0">
-      {initials}
-    </span>
-  )
-}
-
-function EmptyState({ role, onCreate }) {
-  return (
-    <div className="bg-white rounded-2xl border border-gray-200 p-8 sm:p-12 lg:p-16 text-center">
-      <MdInsertChart size={56} className="text-gray-300 mx-auto mb-3" />
-      <h3 className="text-lg font-semibold text-gray-900 m-0">
-        {role === 'buyer' ? 'Худалдан авсан мал байхгүй' : 'Худалдсан мал байхгүй'}
-      </h3>
-      <p className="text-sm text-gray-500 mt-2 mb-5 m-0">
-        Гэрээ амжилттай баталгаажсаны дараа малын мэдээлэл энд харагдах болно
-      </p>
-      <button
-        onClick={onCreate}
-        className="px-5 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-xl
-                   hover:bg-emerald-700 cursor-pointer border-0"
-      >
-        Гэрээ үүсгэх
-      </button>
     </div>
   )
 }

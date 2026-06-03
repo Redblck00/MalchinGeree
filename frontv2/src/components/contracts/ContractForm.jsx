@@ -106,7 +106,7 @@ function RegisterInput({ value, onChange, disabled }) {
 
   const emit = (nl1, nl2, nd) => onChange(`${nl1}${nl2}${nd}`)
 
-  const selCls = `px-2 py-2.5 border rounded-xl text-sm outline-none transition-colors
+  const selCls = `px-2 py-2.5 border rounded-sm text-sm outline-none transition-colors
                   ${disabled
                     ? 'bg-gray-50 border-gray-200 text-gray-600'
                     : 'bg-white border-gray-200 text-gray-900 hover:border-gray-300 focus:border-[#3d3a8c] focus:ring-2 focus:ring-[#3d3a8c]/10'}`
@@ -140,7 +140,7 @@ function RegisterInput({ value, onChange, disabled }) {
           value={digits}
           onChange={e => emit(l1, l2, e.target.value.replace(/\D/g, '').slice(0, 8))}
           disabled={disabled}
-          className={`flex-1 min-w-0 px-3 py-2.5 border rounded-xl text-sm outline-none transition-colors tracking-widest
+          className={`flex-1 min-w-0 px-3 py-2.5 border rounded-sm text-sm outline-none transition-colors tracking-widest
                       ${disabled
                         ? 'bg-gray-50 border-gray-200 text-gray-600'
                         : invalid
@@ -173,7 +173,7 @@ function FormField({ field, value, onChange, disabled }) {
         </label>
         {disabled && (
           <span className="text-[9px] font-bold uppercase tracking-wider
-                           bg-indigo-50 text-[#3d3a8c] px-1.5 py-0.5 rounded">
+                           bg-indigo-50 text-[#42a385] px-1.5 py-0.5 rounded">
             авто
           </span>
         )}
@@ -365,7 +365,7 @@ function LivestockSection({ items, onUpdate, onAdd, onRemove }) {
         type="button"
         onClick={onAdd}
         className="self-start inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold
-                   text-[#3d3a8c] border border-[#3d3a8c]/30 rounded-lg
+                   text-gray-900 border border-[#3d3a8c]/30 rounded-sm
                    hover:bg-[#3d3a8c]/5 cursor-pointer bg-white"
       >
         <MdAdd size={14} /> Мал нэмэх
@@ -385,13 +385,13 @@ function StepCard({ group, active, completion, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left
+      className={`w-full flex items-center gap-3 p-3 rounded-sm border text-left
                   cursor-pointer transition-all
                   ${active
                     ? 'bg-white border-[#3d3a8c] shadow-sm ring-2 ring-[#3d3a8c]/10'
                     : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
     >
-      <div className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center
+      <div className={`shrink-0 w-9 h-9 rounded-sm flex items-center justify-center
                        ${complete
                          ? 'bg-emerald-50 text-emerald-600'
                          : active
@@ -420,7 +420,7 @@ function StepCard({ group, active, completion, onClick }) {
       </div>
       <MdChevronRight
         size={16}
-        className={`shrink-0 ${active ? 'text-[#3d3a8c]' : 'text-gray-300'}`}
+        className={`shrink-0 ${active ? 'text-[#3a8c6d]' : 'text-gray-300'}`}
       />
     </button>
   )
@@ -712,7 +712,7 @@ export default function ContractForm({
                 key={g.id}
                 type="button"
                 onClick={() => goToStep(g.id)}
-                className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full
+                className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm
                             text-xs font-semibold border cursor-pointer transition-colors
                             ${isActive
                               ? 'bg-[#3d3a8c] text-white border-[#3d3a8c]'
@@ -737,19 +737,19 @@ export default function ContractForm({
         <aside className="hidden lg:flex flex-col gap-3 self-start sticky top-28
                           max-h-[calc(100vh-7rem)] overflow-y-auto pr-1">
           {/* Overall progress card */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+          <div className="bg-white border border-gray-200 rounded-sm p-4 shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-700">
                 Гүйцэтгэл
               </span>
               <span className="text-xs font-bold text-gray-900">
                 {overall.filled} / {overall.total}
-                <span className="text-[#3d3a8c] ml-1">· {overall.pct}%</span>
+                <span className="text-[#3a8c3f] ml-1">· {overall.pct}%</span>
               </span>
             </div>
             <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
               <div
-                className="h-full bg-linear-to-r from-cyan-400 to-[#3d3a8c]
+                className="h-full bg-linear-to-r from-cyan-400 to-[#46b2b2]
                            transition-all duration-500"
                 style={{ width: `${overall.pct}%` }}
               />
@@ -758,7 +758,7 @@ export default function ContractForm({
 
           {/* Warning banner */}
           {missingCount > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3
+            <div className="bg-amber-50 border border-amber-200 rounded-sm p-3
                             flex items-start gap-2">
               <MdWarningAmber size={18} className="text-amber-500 shrink-0 mt-0.5" />
               <p className="text-xs text-amber-800 m-0 leading-snug">
@@ -791,7 +791,7 @@ export default function ContractForm({
             return (
               <section
                 key={g.id}
-                className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6"
+                className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6"
               >
                 {/* Section header */}
                 <div className="flex items-start gap-3 mb-5 pb-4 border-b border-gray-100">
@@ -852,7 +852,7 @@ export default function ContractForm({
                     disabled={!prevGroup}
                     onClick={() => prevGroup && goToStep(prevGroup.id)}
                     className="inline-flex items-center gap-1.5 px-4 py-2 text-sm
-                               text-gray-700 border border-gray-200 rounded-xl
+                               text-gray-700 border border-gray-200 rounded-sm
                                hover:bg-gray-50 cursor-pointer bg-white
                                disabled:opacity-40 disabled:cursor-not-allowed"
                   >
@@ -865,8 +865,8 @@ export default function ContractForm({
                       type="button"
                       onClick={() => goToStep(nextGroup.id)}
                       className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold
-                                 bg-[#3d3a8c] text-white rounded-xl
-                                 hover:bg-[#2d2a6e] cursor-pointer border-0"
+                                 bg-[#4ec8cf] text-white rounded-sm
+                                 hover:bg-teal-500 cursor-pointer border-0"
                     >
                       {nextGroup.title} <MdArrowForward size={14} />
                     </button>
@@ -875,8 +875,8 @@ export default function ContractForm({
                       type="submit"
                       disabled={submitting}
                       className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold
-                                 bg-emerald-600 text-white rounded-xl
-                                 hover:bg-emerald-700 cursor-pointer border-0
+                                 bg-[#4ec8cf] text-white rounded-xl
+                                 hover:bg-teal-500 cursor-pointer border-0
                                  disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <MdSave size={14} />
@@ -942,7 +942,7 @@ export default function ContractForm({
             type="submit"
             disabled={submitting}
             className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5
-                       bg-emerald-600 text-white text-sm font-semibold rounded-xl
+                       bg-teal-600 text-white text-sm font-semibold rounded-xl
                        disabled:opacity-50 cursor-pointer border-0"
           >
             <MdSave size={16} />

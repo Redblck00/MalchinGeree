@@ -237,7 +237,7 @@ export default function RegisterForm() {
         <button
           type="submit"
           disabled={authLoading || passwordMismatch || !allMet}
-          className="w-full py-3 bg-[#3d3a8c] hover:bg-[#2d2a6e]
+          className="w-full py-3 bg-teal-500 hover:bg-teal-600
                      disabled:bg-gray-400 disabled:cursor-not-allowed
                      text-white border-0 rounded-full text-[15px] font-medium
                      cursor-pointer transition-colors mt-1"
@@ -267,7 +267,7 @@ function Field({ label, disabled, ...props }) {
       <input
         {...props}
         disabled={disabled}
-        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-full text-sm
+        className="w-full px-4 py-3 bg-white border border-gray-200  text-sm
                    text-gray-900 placeholder:text-gray-400 outline-none box-border
                    focus:border-gray-400 transition-colors
                    disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed"

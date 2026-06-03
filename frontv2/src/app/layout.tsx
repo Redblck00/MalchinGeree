@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Forum } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/layout/Navbar";
+import ServiceWorkerRegister from "@/components/pwa/ServiceWorkerRegister";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -39,6 +40,7 @@ export default function RootLayout({
             өөрөө null буцаадаг (Navbar.jsx HIDDEN_PREFIXES үз). */}
         <Navbar />
         {children}
+        <ServiceWorkerRegister />
       </body>
     </html>
   );

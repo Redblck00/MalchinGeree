@@ -165,6 +165,7 @@ function TemplateEditor({ onSaved, editing, onCancel }) {
   const [name,        setName]        = useState(editing?.name || '')
   const [description, setDescription] = useState(editing?.description || '')
   const [isStandard,  setIsStandard]  = useState(editing?.is_standard || false)
+  const [isOffline,   setIsOffline]   = useState(editing?.is_offline_enabled || false)
   const [content,     setContent]     = useState(editing?.template_content || '')
   const [preview,     setPreview]     = useState(false)
   const [loading,     setLoading]     = useState(false)
@@ -323,7 +324,7 @@ function TemplateEditor({ onSaved, editing, onCancel }) {
     setError(null)
     try {
       const schema_json = buildSchemaJson(usedKeys, customFields)
-      const body = { name, description, template_content: content, schema_json, is_standard: isStandard }
+      const body = { name, description, template_content: content, schema_json, is_standard: isStandard, is_offline_enabled: isOffline }
 
       if (editing) {
         await api.patch(`/admin/templates/${editing.template_id}`, body)
@@ -346,8 +347,8 @@ function TemplateEditor({ onSaved, editing, onCancel }) {
         </div>
       )}
 
-      {/* Нэр + тайлбар + стандарт */}
-      <div className="grid grid-cols-[1fr_1fr_auto] gap-3 items-end">
+      {/* Нэр + тайлбар + стандарт + offline */}
+      <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-3 items-end">
         <div>
           <label className="text-xs font-medium text-gray-600 mb-1 block">Загварын нэр *</label>
           <input value={name} onChange={e => setName(e.target.value)}
@@ -369,6 +370,15 @@ function TemplateEditor({ onSaved, editing, onCancel }) {
             onChange={e => setIsStandard(e.target.checked)}
             className="accent-[#1e1b4b] w-4 h-4" />
           Стандарт загвар
+        </label>
+        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer
+                          px-3 py-2 border border-gray-200 rounded-xl hover:bg-gray-50
+                          whitespace-nowrap"
+          title="Offline горим сонгоход энэ загвар локалд кэшлэгдэж, сүлжээгүй үед ашиглах боломжтой болно">
+          <input type="checkbox" checked={isOffline}
+            onChange={e => setIsOffline(e.target.checked)}
+            className="accent-[#16a34a] w-4 h-4" />
+          Offline боломжтой
         </label>
       </div>
 
@@ -908,13 +918,21 @@ export default function AdminTemplatesPage() {
               <p className="font-medium text-gray-900">{t.name}</p>
               {t.description && <p className="text-xs text-gray-400">{t.description}</p>}
             </div>
-            <span className={`px-2 py-0.5 rounded-lg text-xs font-medium w-fit ${
-              t.is_standard
-                ? 'bg-blue-50 text-blue-700'
-                : 'bg-gray-100 text-gray-500'
-            }`}>
-              {t.is_standard ? 'Стандарт' : 'Хувийн'}
-            </span>
+            <div className="flex flex-wrap gap-1">
+              <span className={`px-2 py-0.5 rounded-lg text-xs font-medium w-fit ${
+                t.is_standard
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'bg-gray-100 text-gray-500'
+              }`}>
+                {t.is_standard ? 'Стандарт' : 'Хувийн'}
+              </span>
+              {t.is_offline_enabled && (
+                <span className="px-2 py-0.5 rounded-lg text-xs font-medium w-fit
+                                 bg-green-50 text-green-700">
+                  Offline
+                </span>
+              )}
+            </div>
             <span className="text-gray-500 text-xs">
               {t.schema_json?.fields?.length || 0} талбар
             </span>

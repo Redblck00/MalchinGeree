@@ -284,9 +284,9 @@ export default function ProfileSidebar({
         {!editing ? (
           <button
             onClick={startEdit}
-            className="inline-flex items-center justify-center gap-1.5 w-30 h-12
-                       bg-[#006B35] text-white rounded-2xl text-sm font-semibold
-                       hover:bg-[#00582c] transition-colors cursor-pointer border-0
+            className="inline-flex items-center justify-center gap-1.5 w-25 h-10
+                       bg-[#048572] text-white rounded-sm text-sm font-semibold
+                       hover:bg-[#0ab1a0] transition-colors cursor-pointer border-0
                        shadow-sm"
           >
             <Pencil size={16} /> Edit
@@ -297,7 +297,7 @@ export default function ProfileSidebar({
               onClick={cancelEdit}
               disabled={saving}
               className="inline-flex items-center justify-center gap-1 px-4 h-12
-                         bg-white text-[#1a4d33] rounded-2xl text-sm font-medium
+                         bg-white text-[#1a4d33] rounded-sm text-sm font-medium
                          border-0 shadow-sm hover:bg-gray-50 cursor-pointer
                          disabled:opacity-50"
             >
@@ -306,9 +306,9 @@ export default function ProfileSidebar({
             <button
               onClick={handleSave}
               disabled={saving}
-              className="inline-flex items-center justify-center gap-1.5 px-5 h-12
-                         bg-[#006B35] text-white rounded-2xl text-sm font-semibold
-                         hover:bg-[#00582c] cursor-pointer border-0 shadow-sm
+              className="inline-flex items-center justify-center gap-1.5 px-4 h-12
+                         bg-[#048572] text-white rounded-sm text-sm font-semibold
+                         hover:bg-[#0ab1a0] cursor-pointer border-0 shadow-sm
                          disabled:opacity-60"
             >
               <Check size={16} />

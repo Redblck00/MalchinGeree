@@ -3,7 +3,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import  useAuthStore  from '@/app/store/authStore'
 
-const TIMEOUT_MS = 5 * 60 * 1000 // 5 минут
+const TIMEOUT_MS = 30 * 60 * 1000 // 30 минут
 
 export default function useSessionTimeout() {
   const router  = useRouter()

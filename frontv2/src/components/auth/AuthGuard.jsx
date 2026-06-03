@@ -29,9 +29,14 @@ export default function AuthGuard({ children }) {
         setChecking(false)
       } catch (err) {
         if (err.response?.status === 401) {
-          // Token хугацаа дууссан эсвэл хүчингүй
+          // Token хугацаа дууссан эсвэл хүчингүй → гаргах
           logout()
           router.replace('/login?reason=expired')
+        } else {
+          // Сүлжээгүй / сервер унтарсан (network error, response байхгүй):
+          // локал token хүчинтэй тул offline горимд нэвтрүүлнэ.
+          // Зөвхөн 401 үед л logout хийнэ — өөр алдаа session-ийг таслахгүй.
+          setChecking(false)
         }
       }
     }
