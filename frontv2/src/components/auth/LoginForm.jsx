@@ -45,7 +45,7 @@ export default function LoginForm({ onSuccess }) {
   }
 
   return (
-    <div className="bg-gray-100 rounded-2xl px-10 py-12 w-full max-w-md">
+    <div className="bg-gray-100 rounded-sm font-forum px-10 py-12 w-full max-w-md">
 
       {/* ── Title ───────────────────────────────────────── */}
       <div className="text-center mb-10">
@@ -71,7 +71,7 @@ export default function LoginForm({ onSuccess }) {
             maxLength={8}
             required
             autoComplete="tel"
-            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-full text-sm
+            className="w-full px-4 py-3 bg-white border border-gray-200  text-sm
                        text-gray-900 placeholder:text-gray-400 outline-none box-border
                        focus:border-gray-400 transition-colors"
           />
@@ -89,7 +89,7 @@ export default function LoginForm({ onSuccess }) {
               placeholder="**********"
               required
               autoComplete="current-password"
-              className="w-full px-4 py-3 pr-12 bg-white border border-gray-200 rounded-full text-sm
+              className="w-full px-4 py-3 pr-12 bg-white border border-gray-200   text-sm
                          text-gray-900 placeholder:text-gray-400 outline-none box-border
                          focus:border-gray-400 transition-colors"
             />
@@ -135,9 +135,9 @@ export default function LoginForm({ onSuccess }) {
         <button
           type="submit"
           disabled={authLoading || loading}
-          className="w-full py-3 bg-[#3d3a8c] hover:bg-[#2d2a6e]
+          className="w-full py-3 bg-[#09b9ae] hover:bg-[#0e8895]
                      disabled:bg-gray-400 disabled:cursor-not-allowed
-                     text-white border-0 rounded-full text-[15px] font-medium
+                     text-white border-0   text-[15px] font-medium
                      cursor-pointer transition-colors"
         >
           {authLoading || loading ? 'Нэвтэрч байна...' : 'Нэвтрэх'}
@@ -150,7 +150,7 @@ export default function LoginForm({ onSuccess }) {
       {/* ── Register link ───────────────────────────────── */}
       <p className="text-center mt-6 text-sm text-gray-500">
         Бүртгэл байхгүй юу?{' '}
-        <Link href="/register" className="text-[#3d3a8c] no-underline font-semibold">
+        <Link href="/register" className="text-teal-500 no-underline font-semibold">
           Бүртгүүлэх
         </Link>
       </p>

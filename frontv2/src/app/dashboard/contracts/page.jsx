@@ -314,7 +314,7 @@ export default function DocumentPage() {
           ══════════════════════════════════════════════ */}
       {/* Хүснэгт дотроо scroll: ≤lg хөндлөн + босоо, lg босоо. */}
       <div className="flex-1 min-h-0 px-4 sm:px-6 lg:px-10 pb-4 sm:pb-6">
-        <div className="h-full bg-white border border-gray-200 rounded-2xl shadow-sm
+        <div className="h-full bg-white border border-gray-200  shadow-sm
                         overflow-hidden flex flex-col">
 
           {loading ? (

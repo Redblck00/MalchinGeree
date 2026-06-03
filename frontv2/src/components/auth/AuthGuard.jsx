@@ -23,6 +23,13 @@ export default function AuthGuard({ children }) {
         return
       }
 
+      // Offline бол серверийн шалгалтыг алгасаж локал token-оор шууд нэвтрүүлнэ
+      // (эс бол /users/profile нь timeout хүртэл (10с) spinner дээр гацна).
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setChecking(false)
+        return
+      }
+
       // Token хүчинтэй эсэхийг backend-с шалгах
       try {
         await api.get('/users/profile')

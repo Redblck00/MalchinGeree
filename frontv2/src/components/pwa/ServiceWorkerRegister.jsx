@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 
 // SW-г client дээр бүртгэнэ. layout.tsx-ийн body-д mount хийгдэнэ.
+
 export default function ServiceWorkerRegister() {
   useEffect(() => {
     if (typeof window === 'undefined') return
