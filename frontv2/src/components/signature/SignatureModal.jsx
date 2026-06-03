@@ -44,13 +44,13 @@ function SelectStep({ onSelect, onClose }) {
       </p>
       <div className="grid grid-cols-2 gap-5">
         <button onClick={() => onSelect(STEP.DRAW)}
-          className="border-2 border-gray-200 rounded-2xl p-5 flex flex-col items-center gap-3 hover:border-blue-400 hover:shadow-md transition-all text-left">
+          className="border-2 border-gray-200 p-5 flex flex-col items-center gap-3 hover:border-blue-400 hover:shadow-md transition-all text-left">
           <div className="w-full h-28"><DrawOptionIllustration /></div>
           <span className="text-sm font-semibold text-gray-800 self-start">Зурах</span>
           <span className="text-xs text-gray-400 self-start">Хулганаар гарын үсгээ зурж болно</span>
         </button>
         <button onClick={() => onSelect(STEP.AUTO)}
-          className="border-2 border-gray-200 rounded-2xl p-5 flex flex-col items-center gap-3 hover:border-blue-400 hover:shadow-md transition-all text-left">
+          className="border-2 border-gray-200 p-5 flex flex-col items-center gap-3 hover:border-blue-400 hover:shadow-md transition-all text-left">
           <div className="w-full h-28"><AutoOptionIllustration /></div>
           <span className="text-sm font-semibold text-gray-800 self-start">Системээр үүсгэх</span>
           <span className="text-xs text-gray-400 self-start">Таны нэрээр автоматаар үүсгэнэ</span>
@@ -120,7 +120,7 @@ function DrawStep({ onBack, onClose, onSave, loading }) {
     <div className="p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <button onClick={onBack} className="text-gray-400 hover:text-gray-700 p-1 rounded">
+          <button onClick={onBack} className="text-gray-400 hover:text-gray-700 p-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
@@ -133,21 +133,21 @@ function DrawStep({ onBack, onClose, onSave, loading }) {
       <canvas ref={canvasRef} width={560} height={240}
         onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
         onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw}
-        className="w-full border-2 border-dashed border-gray-300 rounded-xl cursor-crosshair touch-none bg-white" />
+        className="w-full border-2 border-dashed border-gray-300 cursor-crosshair touch-none bg-white" />
       <div className="flex items-center justify-between mt-4">
         <button onClick={handleClear}
-          className="px-4 py-2 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">
+          className="px-4 py-2 text-sm text-gray-500 border border-gray-200 hover:bg-gray-50">
           Арилгах
         </button>
         <div className="flex gap-2">
           <button onClick={onBack}
-            className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+            className="px-4 py-2 text-sm text-gray-600 border border-gray-200 hover:bg-gray-50">
             Цуцлах
           </button>
           <button
             onClick={() => onSave(canvasRef.current.toDataURL('image/png'), 'DRAW')}
             disabled={!hasDrawn || loading}
-            className="px-5 py-2 text-sm text-white bg-[#1e1b4b] rounded-lg hover:bg-[#2d2a6e] disabled:opacity-40 disabled:cursor-not-allowed">
+            className="px-5 py-2 text-sm text-white bg-[#1e1b4b] hover:bg-[#2d2a6e] disabled:opacity-40 disabled:cursor-not-allowed">
             {loading ? 'Хадгалж байна...' : 'Хадгалах'}
           </button>
         </div>
@@ -181,7 +181,7 @@ function AutoStep({ onBack, onClose, onSave, userName, loading }) {
     <div className="p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <button onClick={onBack} className="text-gray-400 hover:text-gray-700 p-1 rounded">
+          <button onClick={onBack} className="text-gray-400 hover:text-gray-700 p-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
@@ -192,16 +192,16 @@ function AutoStep({ onBack, onClose, onSave, userName, loading }) {
       </div>
       <p className="text-xs text-gray-400 mb-3">Таны нэрээр автоматаар үүсгэсэн гарын үсэг</p>
       <canvas ref={canvasRef} width={560} height={180}
-        className="w-full border-2 border-dashed border-gray-300 rounded-xl bg-white" />
+        className="w-full border-2 border-dashed border-gray-300 bg-white" />
       <div className="flex justify-end gap-2 mt-4">
         <button onClick={onBack}
-          className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+          className="px-4 py-2 text-sm text-gray-600 border border-gray-200 hover:bg-gray-50">
           Цуцлах
         </button>
         <button
           onClick={() => onSave(canvasRef.current.toDataURL('image/png'), 'AUTO')}
           disabled={loading}
-          className="px-5 py-2 text-sm text-white bg-[#1e1b4b] rounded-lg hover:bg-[#2d2a6e] disabled:opacity-40">
+          className="px-5 py-2 text-sm text-white bg-[#1e1b4b] hover:bg-[#2d2a6e] disabled:opacity-40">
           {loading ? 'Хадгалж байна...' : 'Хадгалах'}
         </button>
       </div>
@@ -215,7 +215,7 @@ export default function SignatureModal({ onClose, onSave, userName = '', loading
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl">
+      <div className="bg-white shadow-xl w-full max-w-2xl">
         {step === STEP.SELECT && <SelectStep onSelect={setStep} onClose={onClose} />}
         {step === STEP.DRAW   && <DrawStep onBack={() => setStep(STEP.SELECT)} onClose={onClose} onSave={onSave} loading={loading} />}
         {step === STEP.AUTO   && <AutoStep onBack={() => setStep(STEP.SELECT)} onClose={onClose} onSave={onSave} userName={userName} loading={loading} />}

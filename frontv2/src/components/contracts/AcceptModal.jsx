@@ -46,7 +46,7 @@ export default function AcceptModal({
           </div>
         </div>
 
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-5">
+        <div className="bg-amber-50 border border-amber-200 p-3 mb-5">
           <p className="text-xs text-amber-900 m-0 leading-relaxed">
             <strong>Анхаар:</strong> Гарын үсэг зурсны дараа гэрээ
             <strong> цаашид өөрчлөгдөх боломжгүй </strong>
@@ -59,7 +59,7 @@ export default function AcceptModal({
             onClick={onCancel}
             disabled={confirming}
             className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 text-sm
-                       rounded-xl hover:bg-gray-50 cursor-pointer bg-white
+                       hover:bg-gray-50 cursor-pointer bg-white
                        disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Үгүй, буцах
@@ -68,7 +68,7 @@ export default function AcceptModal({
             onClick={onConfirm}
             disabled={confirming}
             className="flex-1 px-4 py-2.5 bg-[#3d3a8c] text-white text-sm font-semibold
-                       rounded-xl hover:bg-[#2d2a6e] cursor-pointer border-0
+                       hover:bg-[#2d2a6e] cursor-pointer border-0
                        disabled:opacity-50 disabled:cursor-not-allowed
                        inline-flex items-center justify-center gap-1.5"
           >

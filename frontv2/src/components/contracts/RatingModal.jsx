@@ -57,7 +57,7 @@ export default function RatingModal({
       <form
         onClick={e => e.stopPropagation()}
         onSubmit={handleSubmit}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col"
+        className="bg-white shadow-2xl w-full max-w-md flex flex-col"
       >
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between">
@@ -123,7 +123,7 @@ export default function RatingModal({
             rows={3}
             placeholder="Хамтын ажиллагааны талаархи сэтгэгдлээ үлдээж болно..."
             maxLength={500}
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm
+            className="w-full px-3 py-2.5 border border-gray-200 text-sm
                        outline-none focus:border-[#3d3a8c] bg-white resize-none"
           />
           <p className="text-[11px] text-gray-400 text-right mt-1 m-0">
@@ -134,7 +134,7 @@ export default function RatingModal({
         {/* Error */}
         {error && (
           <div className="mx-6 mb-3 px-3 py-2 bg-red-50 border border-red-200
-                          rounded-lg text-xs text-red-600">
+                          text-xs text-red-600">
             {error}
           </div>
         )}
@@ -146,7 +146,7 @@ export default function RatingModal({
             onClick={onClose}
             disabled={submitting}
             className="px-5 py-2.5 text-sm text-gray-600 border border-gray-200
-                       rounded-xl hover:bg-gray-50 cursor-pointer bg-white
+                       hover:bg-gray-50 cursor-pointer bg-white
                        disabled:opacity-50"
           >
             Цуцлах
@@ -155,7 +155,7 @@ export default function RatingModal({
             type="submit"
             disabled={submitting || rating < 1}
             className="px-5 py-2.5 text-sm font-semibold text-white bg-[#3d3a8c]
-                       rounded-xl hover:bg-[#2d2a6e] cursor-pointer border-0
+                       hover:bg-[#2d2a6e] cursor-pointer border-0
                        disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? 'Илгээж байна...' : (existingRating ? 'Засах' : 'Илгээх')}

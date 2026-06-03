@@ -1,10 +1,10 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import {
   MdEventNote, MdPersonOutline, MdPets, MdLocalShipping,
   MdPayments, MdAttachFile, MdEdit, MdCheck, MdChevronRight,
   MdChevronLeft, MdInfoOutline, MdWarningAmber, MdSave,
-  MdAdd, MdClose, MdArrowForward, MdArrowBack,
+  MdAdd, MdClose, MdArrowForward, MdArrowBack, MdKeyboardArrowDown,
 } from 'react-icons/md'
 import CONTRACT_FIELDS, { LIVESTOCK_TYPES } from '@/lib/contractFields'
 import { REGISTER_LETTERS } from '@/lib/registerLetters'
@@ -93,6 +93,77 @@ function getNestedValue(obj, key) {
 }
 
 // ──────────────────────────────────────────────────────────
+// Крил үсэг сонгох custom dropdown
+// Native <select>-ийн drop-down нь хөтчийн стайлаар гардаг тул Figma-гийн
+// "цагаан overlay" харагдацыг гаргаж чадахгүй. Иймд товч + цагаан overlay
+// панелиар (grid) өөрсдөө хийнэ. Гадуур дарвал хаагдана.
+// ──────────────────────────────────────────────────────────
+function LetterSelect({ value, onChange, disabled }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDocClick = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen(o => !o)}
+        className={`flex items-center justify-between gap-1 w-14 px-2.5 py-2.5 border rounded-sm
+                    text-sm outline-none transition-colors
+                    ${disabled
+                      ? 'bg-gray-50 border-gray-200 text-gray-600 cursor-not-allowed'
+                      : open
+                        ? 'bg-white border-[#3d3a8c] ring-2 ring-[#3d3a8c]/10 text-gray-900 cursor-pointer'
+                        : 'bg-white border-gray-200 text-gray-900 hover:border-gray-300 cursor-pointer'}`}
+      >
+        <span className={value ? '' : 'text-gray-400'}>{value || '—'}</span>
+        <MdKeyboardArrowDown
+          size={16}
+          className={`shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {open && !disabled && (
+        <div
+          className="absolute z-50 mt-1 left-0 w-48 max-h-56 overflow-y-auto no-scrollbar
+                     bg-white border border-gray-200 rounded-md shadow-lg
+                     p-2 grid grid-cols-5 gap-1"
+        >
+          {REGISTER_LETTERS.map(L => (
+            <button
+              key={L}
+              type="button"
+              onClick={() => { onChange(L); setOpen(false) }}
+              className={`w-7 h-7 flex items-center justify-center text-sm rounded-sm
+                          cursor-pointer border-0 transition-colors
+                          ${value === L
+                            ? 'bg-[#3d3a8c] text-white'
+                            : 'bg-transparent text-gray-700 hover:bg-[#3d3a8c]/10'}`}
+            >
+              {L}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────
 // Регистрийн composite input — 2 крил үсэг select + 8 оронтой тоо
 // Утга нь нэг мөр болж хадгалагдана (жишээ: "УБ12345678")
 // ──────────────────────────────────────────────────────────
@@ -106,32 +177,19 @@ function RegisterInput({ value, onChange, disabled }) {
 
   const emit = (nl1, nl2, nd) => onChange(`${nl1}${nl2}${nd}`)
 
-  const selCls = `px-2 py-2.5 border rounded-sm text-sm outline-none transition-colors
-                  ${disabled
-                    ? 'bg-gray-50 border-gray-200 text-gray-600'
-                    : 'bg-white border-gray-200 text-gray-900 hover:border-gray-300 focus:border-[#3d3a8c] focus:ring-2 focus:ring-[#3d3a8c]/10'}`
-
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-2">
-        <select
+        <LetterSelect
           value={l1}
-          onChange={e => emit(e.target.value, l2, digits)}
+          onChange={v => emit(v, l2, digits)}
           disabled={disabled}
-          className={selCls + ' shrink-0'}
-        >
-          <option value="">—</option>
-          {REGISTER_LETTERS.map(L => <option key={L} value={L}>{L}</option>)}
-        </select>
-        <select
+        />
+        <LetterSelect
           value={l2}
-          onChange={e => emit(l1, e.target.value, digits)}
+          onChange={v => emit(l1, v, digits)}
           disabled={disabled}
-          className={selCls + ' shrink-0'}
-        >
-          <option value="">—</option>
-          {REGISTER_LETTERS.map(L => <option key={L} value={L}>{L}</option>)}
-        </select>
+        />
         <input
           type="text"
           inputMode="numeric"

@@ -78,9 +78,9 @@ export default function AlertModal({
         <button
           type="button"
           onClick={onClose}
-          className="w-full py-3 rounded-2xl text-white font-semibold text-base
+          className="w-full py-3 text-white font-semibold text-base
                      cursor-pointer border-0 transition-transform
-                     hover:scale-[1.02] active:scale-[0.99] bg-gradient-to-r from-[#d1d1db] to-[#50e0d4]"
+                     hover:scale-[1.02] active:scale-[0.99] bg-gradient-to-r from-[#cfcfde] to-[#2bb1a6]"
          
         >
           {buttonText}

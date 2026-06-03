@@ -23,7 +23,7 @@ export default function RoleSelectModal({ template, onClose, onSelect }) {
       onClick={onClose}
     >
       <div
-        className="relative bg-white rounded-t-2xl sm:rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden
+        className="relative bg-white w-full max-w-lg shadow-2xl overflow-hidden
                     max-h-[92dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
@@ -38,7 +38,7 @@ export default function RoleSelectModal({ template, onClose, onSelect }) {
           <div className="relative flex items-start justify-between gap-3">
             <div className="flex items-start gap-3 min-w-0 flex-1">
               {/* Header icon */}
-              <div className="shrink-0 w-11 h-11 rounded-2xl
+              <div className="shrink-0 w-11 h-11
                               bg-linear-to-br from-emerald-500 to-emerald-700
                               text-white flex items-center justify-center
                               shadow-md shadow-emerald-200">
@@ -56,7 +56,7 @@ export default function RoleSelectModal({ template, onClose, onSelect }) {
 
             <button
               onClick={onClose}
-              className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center
+              className="shrink-0 w-8 h-8 flex items-center justify-center
                          text-emerald-700/60 hover:text-emerald-900 hover:bg-white/60
                          cursor-pointer bg-transparent border-0 transition-colors"
               aria-label="Хаах"
@@ -97,7 +97,7 @@ export default function RoleSelectModal({ template, onClose, onSelect }) {
           <button
             onClick={onClose}
             className="flex-1 px-4 py-3 text-sm font-medium text-gray-700
-                       bg-white border border-gray-200 rounded-xl
+                       bg-white border border-gray-200
                        hover:bg-gray-50 hover:border-gray-300
                        cursor-pointer transition-colors"
           >
@@ -108,7 +108,7 @@ export default function RoleSelectModal({ template, onClose, onSelect }) {
             className="flex-1 inline-flex items-center justify-center gap-1.5
                        px-4 py-3 text-sm font-semibold text-white
                        bg-linear-to-br from-emerald-500 to-emerald-700
-                       rounded-xl hover:from-emerald-600 hover:to-emerald-800
+                       hover:from-emerald-600 hover:to-emerald-800
                        shadow-md shadow-emerald-200
                        cursor-pointer border-0 transition-all"
           >
@@ -125,7 +125,7 @@ function RoleOption({ selected, onClick, icon, title, subtitle }) {
   return (
     <button
       onClick={onClick}
-      className={`relative overflow-hidden p-4 sm:p-5 rounded-2xl border-2
+      className={`relative overflow-hidden p-4 sm:p-5 border-2
                   flex flex-col items-center gap-2 transition-all
                   cursor-pointer text-center
                   ${selected
@@ -142,7 +142,7 @@ function RoleOption({ selected, onClick, icon, title, subtitle }) {
       )}
 
       {/* Icon */}
-      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors
+      <div className={`w-14 h-14 flex items-center justify-center transition-colors
                        ${selected
                          ? 'bg-linear-to-br from-emerald-500 to-emerald-700 text-white shadow-md shadow-emerald-200'
                          : 'bg-gray-100 text-gray-500'}`}>

@@ -50,7 +50,7 @@ export default function CancelContractModal({
       onClick={submitting ? undefined : onClose}
     >
       <div
-        className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl"
+        className="bg-white max-w-md w-full p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -71,7 +71,7 @@ export default function CancelContractModal({
         </div>
 
         {/* Анхааруулга */}
-        <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4">
+        <div className="bg-red-50 border border-red-200 p-3 mb-4">
           <p className="text-xs text-red-900 m-0 leading-relaxed">
             <strong>Анхаар:</strong> Цуцалсан гэрээг сэргээх боломжгүй.
             харилцагчид мэдэгдэнэ.
@@ -90,7 +90,7 @@ export default function CancelContractModal({
             disabled={submitting}
             rows={3}
             placeholder="Жишээ нь: Тохиролцоо болсонгүй..."
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white
+            className="w-full px-3 py-2.5 border border-gray-200 text-sm bg-white
                        text-gray-900 outline-none resize-none
                        focus:border-[#3d3a8c] focus:ring-2 focus:ring-[#3d3a8c]/10
                        transition-colors
@@ -109,7 +109,7 @@ export default function CancelContractModal({
               onClick={onClose}
               disabled={submitting}
               className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 text-sm
-                         rounded-xl hover:bg-gray-50 cursor-pointer bg-white
+                         hover:bg-gray-50 cursor-pointer bg-white
                          disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Үгүй, буцах
@@ -118,7 +118,7 @@ export default function CancelContractModal({
               type="submit"
               disabled={submitting}
               className="flex-1 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold
-                         rounded-xl hover:bg-red-700 cursor-pointer border-0
+                         hover:bg-red-700 cursor-pointer border-0
                          disabled:opacity-50 disabled:cursor-not-allowed
                          inline-flex items-center justify-center gap-1.5"
             >

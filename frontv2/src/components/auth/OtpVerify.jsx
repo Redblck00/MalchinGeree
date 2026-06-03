@@ -90,7 +90,7 @@ export default function OtpVerify({ phone, email, redirectTo, onBack }) {
           Баталгаажуулах
         </h1>
         <p className="text-sm text-gray-500 m-0">
-          <span className="font-semibold text-gray-700">{phone}</span> дугаартай имейл рүү илгээсэн{' '}
+           Имейл рүү илгээсэн
           6 оронтой кодыг оруулна уу
         </p>
       </div>
@@ -123,7 +123,7 @@ export default function OtpVerify({ phone, email, redirectTo, onBack }) {
         {canResend ? (
           'Код ирээгүй юу?'
         ) : (
-          <><span className="font-medium text-gray-700">{timer}с</span> дараа дахин илгээх боломжтой</>
+          <><span className="font-medium text-gray-700">{timer}</span> хүлээгдэх хугацаа</>
         )}
       </p>
 

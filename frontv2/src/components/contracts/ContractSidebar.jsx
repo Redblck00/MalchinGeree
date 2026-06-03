@@ -852,7 +852,7 @@ export default function ContractSidebar({
         </div>
 
         {/* Tab content — scrollable middle area */}
-        <div className="flex-1 overflow-y-auto pr-1 -mr-1 min-h-0">
+        <div className="flex-1 overflow-y-auto no-scrollbar pr-1 -mr-1 min-h-0">
           {tab === 'participants' && (
             <ParticipantsTab
               contract={contract}

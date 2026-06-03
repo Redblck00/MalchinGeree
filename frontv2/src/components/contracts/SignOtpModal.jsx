@@ -94,7 +94,7 @@ export default function SignOtpModal({
       onClick={verifying ? undefined : onClose}
     >
       <div
-        className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl"
+        className="bg-white max-w-md w-full p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -116,7 +116,7 @@ export default function SignOtpModal({
         </div>
 
         {/* Тайлбар */}
-        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 mb-4">
+        <div className="bg-indigo-50 border border-indigo-100 p-3 mb-4">
           <p className="text-xs text-indigo-900 m-0 leading-relaxed">
             Гарын үсэг зурахын өмнө таны өөрийг чинь мөн эсэхийг баталгаажуулна.
             Имэйл хайрцагт ирсэн 6 оронтой кодыг доор оруулна уу.
@@ -138,7 +138,7 @@ export default function SignOtpModal({
             disabled={verifying}
             placeholder="• • • • • •"
             className="w-full text-center font-mono text-2xl tracking-[0.5em]
-                       py-3 px-4 border-2 border-gray-200 rounded-xl bg-white
+                       py-3 px-4 border-2 border-gray-200 bg-white
                        focus:border-[#3d3a8c] focus:ring-2 focus:ring-[#3d3a8c]/10
                        outline-none transition-colors
                        disabled:bg-gray-50 disabled:text-gray-400"
@@ -177,7 +177,7 @@ export default function SignOtpModal({
               onClick={onClose}
               disabled={verifying}
               className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 text-sm
-                         rounded-xl hover:bg-gray-50 cursor-pointer bg-white
+                         hover:bg-gray-50 cursor-pointer bg-white
                          disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Цуцлах
@@ -186,7 +186,7 @@ export default function SignOtpModal({
               type="submit"
               disabled={code.length !== 6 || verifying}
               className="flex-1 px-4 py-2.5 bg-[#3d3a8c] text-white text-sm font-semibold
-                         rounded-xl hover:bg-[#2d2a6e] cursor-pointer border-0
+                         hover:bg-[#2d2a6e] cursor-pointer border-0
                          disabled:opacity-50 disabled:cursor-not-allowed
                          inline-flex items-center justify-center gap-1.5"
             >

@@ -117,7 +117,7 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
       onClick={onClose}
     >
       <div
-        className="bg-white w-full sm:max-w-[1000px] rounded-t-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col relative
+        className="bg-white w-full sm:max-w-[1000px]  sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col relative
                    ring-1 ring-emerald-900/10 h-[96dvh] sm:h-[90vh] max-h-[96dvh]"
         onClick={e => e.stopPropagation()}
       >
@@ -125,7 +125,7 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
         <button
           onClick={onClose}
           className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 w-9 h-9 flex items-center justify-center
-                     rounded-xl bg-white/90 hover:bg-emerald-50 text-gray-500
+                      bg-white/90 hover:bg-emerald-50 text-gray-500
                      hover:text-emerald-700 border border-gray-200 hover:border-emerald-200
                      cursor-pointer shadow-sm transition-colors"
           aria-label="Хаах"
@@ -347,8 +347,8 @@ export default function TemplatePreview({ template, onClose, loading, onUse }) {
                   <button
                     onClick={() => onUse(template)}
                     className="flex-1 py-3 px-4 text-sm font-semibold
-                               text-white bg-[#3d3a8c] border-0 rounded-xl
-                               hover:bg-[#2d2a6e] cursor-pointer transition-colors"
+                               text-white bg-[#1b8f87] border-0 rounded-xl
+                               hover:bg-[#088583] cursor-pointer transition-colors"
                   >
                     Ашиглах
                   </button>

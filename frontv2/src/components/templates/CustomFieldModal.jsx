@@ -98,14 +98,14 @@ export default function CustomFieldModal({
       <form
         onClick={e => e.stopPropagation()}
         onSubmit={handleSubmit}
-        className="w-full max-w-md bg-white rounded-2xl shadow-2xl
+        className="w-full max-w-md bg-white shadow-2xl
                    border border-gray-100 overflow-hidden"
       >
         {/* Header */}
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between
                         bg-linear-to-br from-[#1e1b4b] to-[#3d3a8c] text-white">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 bg-white/15 flex items-center justify-center shrink-0">
               <TypeIcon size={18} />
             </div>
             <div className="min-w-0">
@@ -120,7 +120,7 @@ export default function CustomFieldModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 cursor-pointer
+            className="w-7 h-7 bg-white/10 hover:bg-white/20 cursor-pointer
                        border-0 flex items-center justify-center text-white"
           >
             <MdClose size={16} />
@@ -144,7 +144,7 @@ export default function CustomFieldModal({
                     type="button"
                     onClick={() => setType(t.value)}
                     title={t.hint}
-                    className={`flex flex-col items-center gap-1 py-2 rounded-lg
+                    className={`flex flex-col items-center gap-1 py-2
                                 border transition-all cursor-pointer
                                 ${active
                                   ? 'bg-[#1e1b4b] text-white border-[#1e1b4b] shadow-sm'
@@ -171,7 +171,7 @@ export default function CustomFieldModal({
               value={label}
               onChange={e => setLabel(e.target.value)}
               placeholder="Жишээ: Гэрчлэх дугаар"
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm
+              className="w-full px-3 py-2.5 border border-gray-200 text-sm
                          outline-none focus:border-[#1e1b4b] focus:ring-2 focus:ring-[#1e1b4b]/10"
             />
           </div>
@@ -188,7 +188,7 @@ export default function CustomFieldModal({
               value={key}
               onChange={e => { setKeyTouched(true); setKey(e.target.value.toLowerCase()) }}
               placeholder="extra_note"
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono
+              className="w-full px-3 py-2.5 border border-gray-200 text-sm font-mono
                          outline-none focus:border-[#1e1b4b] focus:ring-2 focus:ring-[#1e1b4b]/10"
             />
             <p className="text-[10px] text-gray-400 mt-1">
@@ -198,7 +198,7 @@ export default function CustomFieldModal({
 
           {/* Preview chip */}
           {label && key && (
-            <div className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
+            <div className="bg-gray-50 border border-gray-100 px-3 py-2.5">
               <p className="text-[10px] text-gray-400 uppercase tracking-wide font-semibold mb-1.5">
                 Урьдчилан харах
               </p>
@@ -214,7 +214,7 @@ export default function CustomFieldModal({
           )}
 
           {error && (
-            <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">
+            <div className="px-3 py-2 bg-red-50 border border-red-200 text-xs text-red-600">
               {error}
             </div>
           )}
@@ -226,14 +226,14 @@ export default function CustomFieldModal({
             type="button"
             onClick={onClose}
             className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-200
-                       rounded-lg hover:bg-gray-50 cursor-pointer"
+                       hover:bg-gray-50 cursor-pointer"
           >
             Цуцлах
           </button>
           <button
             type="submit"
             className="px-4 py-2 text-sm font-semibold text-white bg-[#1e1b4b]
-                       rounded-lg hover:bg-[#2d2a6e] cursor-pointer border-0"
+                       hover:bg-[#2d2a6e] cursor-pointer border-0"
           >
             {editing ? 'Хадгалах' : 'Нэмэх'}
           </button>

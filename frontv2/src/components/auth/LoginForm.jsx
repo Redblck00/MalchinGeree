@@ -53,7 +53,7 @@ export default function LoginForm({ onSuccess }) {
           Сайн байна уу
         </h1>
         <p className="text-sm text-gray-500 m-0">
-          Welcome back! Please enter your details.
+          Цахим гэрээний платформд нэгдэхэд бэлэн  үү
         </p>
       </div>
 

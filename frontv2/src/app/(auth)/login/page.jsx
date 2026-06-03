@@ -19,7 +19,7 @@ function LoginContent() {
   const handleSuccess = () => {
     const { user } = useAuthStore.getState()
     if (user?.user_type === 'ADMIN') {
-      router.replace('/admin')
+      router.replace('/admin/reports/visits')
     } else {
       router.replace(redirect)
     }

@@ -56,7 +56,10 @@ export default function VerifyPage() {
     && verification.chain_valid
     && verification.hash_match
 
-  const blockchainExplorer = process.env.NEXT_PUBLIC_BLOCKCHAIN_EXPLORER
+  // Testnet explorer-ийн суурь хаяг (default: Polygon Amoy).
+  // Сүлжээ солих бол NEXT_PUBLIC_BLOCKCHAIN_EXPLORER-ээр дарж бичнэ.
+  const blockchainExplorer =
+    process.env.NEXT_PUBLIC_BLOCKCHAIN_EXPLORER || 'https://amoy.polygonscan.com'
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-6">
@@ -157,14 +160,18 @@ export default function VerifyPage() {
               <HashField label="Previous hash"  value={verification.block.previous_hash} />
               <HashField label="Contract hash"  value={verification.block.contract_hash} />
 
-              {blockchainExplorer && (
+              {verification.block.onchain_tx_hash ? (
                 <a
-                  href={`${blockchainExplorer}/tx/${verification.block.block_id}`}
+                  href={`${blockchainExplorer}/tx/${verification.block.onchain_tx_hash}`}
                   target="_blank" rel="noopener"
                   className="inline-block mt-4 text-xs text-[#3d3a8c] font-semibold hover:underline"
                 >
-                  Block explorer-аар үзэх ↗
+                  {(verification.block.onchain_network || 'Testnet')} explorer-аар үзэх ↗
                 </a>
+              ) : (
+                <p className="mt-4 text-[11px] text-gray-400 italic m-0">
+                  Дотоод hash chain (off-chain) дээр баталгаажсан.
+                </p>
               )}
             </>
           ) : (

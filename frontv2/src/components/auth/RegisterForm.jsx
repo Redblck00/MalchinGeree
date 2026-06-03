@@ -145,7 +145,7 @@ export default function RegisterForm() {
               placeholder="**********"
               required
               autoComplete="new-password"
-              className="w-full px-4 py-3 pr-12 bg-white border border-gray-200 rounded-full text-sm
+              className="w-full px-4 py-3 pr-12 bg-white border border-gray-200  text-sm
                          text-gray-900 placeholder:text-gray-400 outline-none box-border
                          focus:border-gray-400 transition-colors"
             />
@@ -206,7 +206,7 @@ export default function RegisterForm() {
               placeholder="**********"
               required
               autoComplete="new-password"
-              className={`w-full px-4 py-3 pr-12 bg-white border rounded-full text-sm
+              className={`w-full px-4 py-3 pr-12 bg-white border  text-sm
                           text-gray-900 placeholder:text-gray-400 outline-none box-border
                           focus:border-gray-400 transition-colors
                           ${passwordMismatch ? 'border-red-400' : 'border-gray-200'}`}
@@ -238,8 +238,8 @@ export default function RegisterForm() {
           type="submit"
           disabled={authLoading || passwordMismatch || !allMet}
           className="w-full py-3 bg-teal-500 hover:bg-teal-600
-                     disabled:bg-gray-400 disabled:cursor-not-allowed
-                     text-white border-0 rounded-full text-[15px] font-medium
+                    
+                     text-white border-0  text-[15px] font-medium
                      cursor-pointer transition-colors mt-1"
         >
           {authLoading ? 'Бүртгэж байна...' : 'Бүртгүүлэх'}
@@ -249,7 +249,7 @@ export default function RegisterForm() {
       {/* Footer */}
       <p className="text-center mt-5 text-sm text-gray-500 m-0">
         Бүртгэлтэй юу?{' '}
-        <Link href="/login" className="text-[#3d3a8c] no-underline font-semibold">
+        <Link href="/login" className="text-[#1599a2] no-underline font-semibold">
           Нэвтрэх
         </Link>
       </p>
