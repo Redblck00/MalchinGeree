@@ -16,7 +16,7 @@ const pool = { query: (text, params) => query(text, params) }
 
 const findAllTemplates = async (exec = pool) => {
   const r = await exec.query(
-    `SELECT template_id, name, description, is_standard, is_active,
+    `SELECT template_id, name, description, is_standard, is_active, is_offline_enabled,
             schema_json, created_at, updated_at,
             -- template_content хэрэглэгчид харуулахгүй (нуугдсан)
             LENGTH(template_content) AS content_length
@@ -28,7 +28,7 @@ const findAllTemplates = async (exec = pool) => {
 
 const findTemplateById = async (id, exec = pool) => {
   const r = await exec.query(
-    `SELECT template_id, name, description, is_standard, is_active,
+    `SELECT template_id, name, description, is_standard, is_active, is_offline_enabled,
             template_content, schema_json, created_at, updated_at
      FROM contract_templates
      WHERE template_id = $1`,
@@ -38,33 +38,34 @@ const findTemplateById = async (id, exec = pool) => {
 }
 
 const insertTemplate = async (
-  { name, description, content, schema, isStandard, createdBy }, exec = pool
+  { name, description, content, schema, isStandard, isOfflineEnabled = false, createdBy }, exec = pool
 ) => {
   const r = await exec.query(
     `INSERT INTO contract_templates
-       (name, description, template_content, schema_json, is_standard, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6)
-     RETURNING template_id, name, description, is_standard, schema_json, created_at`,
-    [name, description, content, schema, isStandard, createdBy]
+       (name, description, template_content, schema_json, is_standard, is_offline_enabled, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)
+     RETURNING template_id, name, description, is_standard, is_offline_enabled, schema_json, created_at`,
+    [name, description, content, schema, isStandard, isOfflineEnabled, createdBy]
   )
   return r.rows[0]
 }
 
 const updateTemplate = async (
-  { id, name, description, content, schema, isStandard, isActive }, exec = pool
+  { id, name, description, content, schema, isStandard, isActive, isOfflineEnabled }, exec = pool
 ) => {
   const r = await exec.query(
     `UPDATE contract_templates
-     SET name             = COALESCE($1, name),
-         description      = COALESCE($2, description),
-         template_content = COALESCE($3, template_content),
-         schema_json      = COALESCE($4, schema_json),
-         is_standard      = COALESCE($5, is_standard),
-         is_active        = COALESCE($6, is_active),
-         updated_at       = NOW()
-     WHERE template_id = $7
-     RETURNING template_id, name, is_standard, is_active, updated_at`,
-    [name, description, content, schema, isStandard, isActive, id]
+     SET name               = COALESCE($1, name),
+         description        = COALESCE($2, description),
+         template_content   = COALESCE($3, template_content),
+         schema_json        = COALESCE($4, schema_json),
+         is_standard        = COALESCE($5, is_standard),
+         is_active          = COALESCE($6, is_active),
+         is_offline_enabled = COALESCE($7, is_offline_enabled),
+         updated_at         = NOW()
+     WHERE template_id = $8
+     RETURNING template_id, name, is_standard, is_active, is_offline_enabled, updated_at`,
+    [name, description, content, schema, isStandard, isActive, isOfflineEnabled, id]
   )
   return r.rows[0]
 }

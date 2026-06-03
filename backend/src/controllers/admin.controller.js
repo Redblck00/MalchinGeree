@@ -25,7 +25,7 @@ const getTemplateById = async (req, res) => {
 
 const createTemplate = async (req, res) => {
   try {
-    const { name, template_content, schema_json, is_standard = false, description } = req.body
+    const { name, template_content, schema_json, is_standard = false, is_offline_enabled = false, description } = req.body
 
     if (!name)             return res.status(400).json({ message: 'Загварын нэр шаардлагатай' })
     if (!template_content) return res.status(400).json({ message: 'Гэрээний текст шаардлагатай' })
@@ -46,6 +46,7 @@ const createTemplate = async (req, res) => {
       content:     template_content,
       schema:      parsedSchema,
       isStandard:  is_standard,
+      isOfflineEnabled: is_offline_enabled,
       createdBy:   req.user.user_id,
     })
 
@@ -65,7 +66,7 @@ const createTemplate = async (req, res) => {
 
 const updateTemplate = async (req, res) => {
   try {
-    const { name, template_content, schema_json, is_standard, description, is_active } = req.body
+    const { name, template_content, schema_json, is_standard, description, is_active, is_offline_enabled } = req.body
     const template = await repo.updateTemplate({
       id:          req.params.id,
       name:        name || null,
@@ -74,6 +75,7 @@ const updateTemplate = async (req, res) => {
       schema:      schema_json ? (typeof schema_json === 'string' ? JSON.parse(schema_json) : schema_json) : null,
       isStandard:  is_standard !== undefined ? is_standard : null,
       isActive:    is_active   !== undefined ? is_active   : null,
+      isOfflineEnabled: is_offline_enabled !== undefined ? is_offline_enabled : null,
     })
     if (!template) return res.status(404).json({ message: 'Загвар олдсонгүй' })
     res.json({ data: template })

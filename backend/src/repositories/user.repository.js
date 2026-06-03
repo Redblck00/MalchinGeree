@@ -82,8 +82,9 @@ const findRecentRatingsForUser = async (userId, exec = pool) => {
   const r = await exec.query(
     `SELECT ur.rating_id, ur.rating, ur.comment, ur.created_at,
             ur.contract_id, c.contract_number,
-            u.first_name AS rater_first_name,
-            u.last_name  AS rater_last_name
+            u.first_name        AS rater_first_name,
+            u.last_name         AS rater_last_name,
+            u.profile_image_url AS rater_image_url
      FROM user_ratings ur
      LEFT JOIN users u     ON u.user_id     = ur.rater_id
      LEFT JOIN contracts c ON c.contract_id = ur.contract_id

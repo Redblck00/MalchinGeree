@@ -167,6 +167,7 @@ CREATE TABLE contract_templates (
     file_url         VARCHAR(500),
     is_standard      BOOLEAN NOT NULL DEFAULT false,
     is_active        BOOLEAN NOT NULL DEFAULT true,
+    is_offline_enabled BOOLEAN NOT NULL DEFAULT false,   -- offline горимд ашиглах боломжтой (#002)
     created_by       UUID REFERENCES users(user_id) ON DELETE SET NULL,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -175,6 +176,7 @@ CREATE TABLE contract_templates (
 CREATE INDEX idx_templates_creator  ON contract_templates(created_by);
 CREATE INDEX idx_templates_standard ON contract_templates(is_standard) WHERE is_standard = true;
 CREATE INDEX idx_templates_active   ON contract_templates(is_active)   WHERE is_active = true;
+CREATE INDEX idx_templates_offline  ON contract_templates(is_offline_enabled) WHERE is_offline_enabled = true;
 
 
 -- ── 4.2 Гэрээний дугаарын sequence ────────────────────────────────

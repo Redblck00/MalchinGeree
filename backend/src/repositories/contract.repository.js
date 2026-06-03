@@ -19,7 +19,7 @@ const pool = { query: (text, params) => query(text, params) }
 
 const findActiveTemplates = async (exec = pool) => {
   const r = await exec.query(
-    `SELECT template_id, name, description, is_standard, schema_json, created_at
+    `SELECT template_id, name, description, is_standard, is_offline_enabled, schema_json, created_at
        FROM contract_templates
       WHERE is_active = true
       ORDER BY is_standard DESC, created_at DESC`
