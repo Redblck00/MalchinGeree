@@ -1,4 +1,4 @@
-// ── MalchinGeree Service Worker (offline fail-fast proof) ──────────────
+// MalchinGeree Service Worker offline fail-fast proof
 // Гар бичсэн SW — bundler (Turbopack/webpack)-ээс хамаарахгүй static файл.
 // Стратеги: network-first + cache fallback. Online үед хариуг кэшэлж,
 // offline үед кэшнээс үйлчилнэ (navigation бол root руу fallback).

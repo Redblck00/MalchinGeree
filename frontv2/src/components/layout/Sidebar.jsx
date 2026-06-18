@@ -233,11 +233,11 @@ function UserSidebar({ pathname, searchParams, user, onLogout }) {
           </NavItem>
         </NavGroup>
 
-        <NavGroup label="Хэрэгсэл" collapsed={collapsed}>
+        {/* <NavGroup label="Хэрэгсэл" collapsed={collapsed}>
           <NavItem icon={MessageSquare} href="#" collapsed={collapsed}>
             Санал хүсэлт
           </NavItem>
-        </NavGroup>
+        </NavGroup> */}
       </nav>
 
       {/* ── Profile footer ──────────────────────────── */}
