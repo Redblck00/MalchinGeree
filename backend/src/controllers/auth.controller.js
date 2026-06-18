@@ -128,7 +128,7 @@ const login = async (req, res) => {
 
     await repo.markLastLogin(user.user_id)
 
-    // ── Урилгатай гэрээний оролцогчдыг user-тай холбох (хэрэв бүртгэл хийсний дараа урилга ирсэн бол) ──
+    // ── Урилгатай гэрээний оролцогчдыг user-тай холбох (хэрэв бүртгэл хийсний дараа урилга ирсэн бол)
     if (user.email) {
       await repo.linkInvitationsOnLogin(user.user_id, user.email)
     }

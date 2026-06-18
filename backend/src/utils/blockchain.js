@@ -75,10 +75,57 @@ const verifyEntireChain = async () => {
   return { valid: true, total: res.rows.length }
 }
 
+// ══════════════════════════════════════════════════════
+// Жинхэнэ EVM testnet анкор (сонголтоор) — BLOCKCHAIN_MODE=testnet
+// ══════════════════════════════════════════════════════
+// Дотоод SHA-256 ledger (дээрх) хэвээр үлдэнэ. Үүн дээр нэмж, гэрээний
+// hash-ыг жинхэнэ testnet (ж: Polygon Amoy) рүү анкорлоно. Гэрээний агуулга
+// биш — зөвхөн 32 byte SHA-256 hash гүйлгээний calldata-д гарна (нууцлал).
+//   Орчны хувьсагч:
+//     BLOCKCHAIN_MODE=testnet         (эс бөгөөс анкор алгасна → null)
+//     BLOCKCHAIN_RPC_URL=https://...  (Amoy RPC, ж: Alchemy/нийтийн)
+//     WALLET_PRIVATE_KEY=0x...        (faucet-аас цэнэглэсэн testnet хэтэвч)
+//     BLOCKCHAIN_NETWORK=amoy         (explorer/шошго; default 'amoy')
+const anchorOnChain = async (contractHash) => {
+  if ((process.env.BLOCKCHAIN_MODE || 'simulation') !== 'testnet') return null
+
+  const rpcUrl     = process.env.BLOCKCHAIN_RPC_URL
+  const privateKey = process.env.WALLET_PRIVATE_KEY
+  const network    = process.env.BLOCKCHAIN_NETWORK || 'amoy'
+  if (!rpcUrl || !privateKey) {
+    console.error('BLOCKCHAIN_MODE=testnet ч BLOCKCHAIN_RPC_URL / WALLET_PRIVATE_KEY дутуу')
+    return null
+  }
+
+  // ethers-ийг зөвхөн testnet 
+  const { ethers } = require('ethers')
+  const provider   = new ethers.JsonRpcProvider(rpcUrl)
+  const wallet     = new ethers.Wallet(privateKey, provider)
+
+
+  const tx = await wallet.sendTransaction({
+    to:    wallet.address,
+    value: 0,
+    data:  '0x' + contractHash,
+  })
+  return { txHash: tx.hash, network }
+}
+
+// Block-ийн мөрд жинхэнэ on-chain tx hash-ыг хадгална (анкор амжилттай үед)
+const setBlockOnchainTx = (blockId, txHash, network) =>
+  query(
+    `UPDATE blockchain_ledger
+     SET onchain_tx_hash = $2, onchain_network = $3
+     WHERE block_id = $1`,
+    [blockId, txHash, network]
+  )
+
 module.exports = {
   GENESIS_HASH,
   computeBlockHash,
   addBlock,
   verifyBlock,
   verifyEntireChain,
+  anchorOnChain,
+  setBlockOnchainTx,
 }

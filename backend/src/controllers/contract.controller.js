@@ -7,7 +7,7 @@ const { sendInviteEmail, sendContractEventEmail, sendSignOtpEmail } = require('.
 const { generateOtp, saveOtp, verifyOtp: verifyOtpUtil } = require('../utils/otp')
 const { log, LOG }        = require('../utils/logger')
 const { notify, notifyParticipants } = require('../utils/notifier')
-const { addBlock }                   = require('../utils/blockchain')
+const { addBlock, anchorOnChain, setBlockOnchainTx } = require('../utils/blockchain')
 const { generateQRDataUrl }          = require('../utils/qrcode')
 const { safeErrorMessage }           = require('../utils/errors')
 // ── Public frontend base URL ─────────────────────────────
@@ -837,6 +837,18 @@ const confirmContract = async (req, res) => {
           blockTxId: block.block_id,
           qrDataUrl,
         })
+
+        // 4. (Сонголтоор) жинхэнэ testnet рүү анкорлох — BLOCKCHAIN_MODE=testnet.
+        //    DB ledger хэвээр; зөвхөн hash-ыг гинж рүү тавьж tx hash-ыг хадгална.
+        try {
+          const anchor = await anchorOnChain(ver.rendered_hash)
+          if (anchor) {
+            await setBlockOnchainTx(block.block_id, anchor.txHash, anchor.network)
+          }
+        } catch (anchorErr) {
+          console.error('Testnet anchor failed:', anchorErr.message)
+          // Анкор амжилтгүй ч DB ledger хүчинтэй — main flow зогсохгүй
+        }
       }
     } catch (err) {
       console.error('Blockchain registration failed:', err.message)

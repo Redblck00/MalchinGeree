@@ -89,7 +89,7 @@ router.get('/verify/:id', async (req, res) => {
     if (ver?.blockchain_tx_id) {
       const blkRes = await query(
         `SELECT block_id, block_number, previous_hash, contract_hash,
-                timestamp, block_hash
+                timestamp, block_hash, onchain_tx_hash, onchain_network
          FROM blockchain_ledger
          WHERE block_id = $1`,
         [ver.blockchain_tx_id]
