@@ -1,17 +1,7 @@
-# ════════════════════════════════════════════════════════════════
+
 # Render.com Infrastructure-as-Code
 # Docs: https://render.com/docs/blueprint-spec
-#
-# Энэ файл нь backend (Node web service) + PostgreSQL хоёрыг
-# нэг дор үүсгэнэ. Render dashboard → New + → Blueprint → repo сонгоно
-#
-# Үлдсэн алхамууд (Render dashboard дотор):
-#   1. Sync хийсний дараа `malchingeree-api` service-н Environment tab-д
-#      sync:false тэмдэглэгдсэн env var-уудыг гар утгаар оруулна
-#      (FRONTEND_URL, BREVO_API_KEY, EMAIL_FROM, CLOUDINARY_*).
-#   2. Frontend (Vercel)-ийн URL-аа FRONTEND_URL-д бичсэний дараа re-deploy.
-#   3. Анхны deploy-ийн дараа `/health` endpoint 200 буцаагаа эсэхийг шалга.
-# ════════════════════════════════════════════════════════════════
+
 
 services:
   - type: web
@@ -19,10 +9,8 @@ services:
     runtime: node
     rootDir: backend
     plan: free
-    region: singapore           # Монголд хамгийн ойр Render region
+    region: singapore           
     buildCommand: npm ci
-    # Migration-ийг start-ын өмнө гүйцэтгэнэ. Идэмпотент — apply
-    # хийгдсэн migration-ийг алгасна (scripts/migrate.js).
     startCommand: npm run migrate && npm start
     healthCheckPath: /health
     autoDeploy: true
@@ -31,26 +19,18 @@ services:
         value: production
       - key: PORT
         value: 5000
-      # PostgreSQL connection string — доорх database-аас автоматаар татна
       - key: DATABASE_URL
         fromDatabase:
           name: malchingeree-db
-          property: connectionString
-      # JWT secret — Render автоматаар random үүсгэнэ (32 char hex)
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRES_IN
         value: 8h
       - key: OTP_EXPIRES_MIN
         value: 15
-      # ── Дараах env var-уудыг dashboard дотор гар утгаар оруулна ──
-      # FRONTEND_URL: Vercel-ийн production URL (+ preview, comma-аар)
-      #   жишээ: https://malchingeree.vercel.app,https://staging.vercel.app
+
       - key: FRONTEND_URL
         sync: false
-      # ── Email: Brevo HTTP API (Render free нь SMTP порт хаадаг) ──
-      # BREVO_API_KEY: Brevo → SMTP & API → API Keys
-      # EMAIL_FROM:    Brevo дээр баталгаажуулсан илгээгчийн имэйл
       - key: BREVO_API_KEY
         sync: false
       - key: EMAIL_FROM
@@ -68,6 +48,5 @@ databases:
     databaseName: e_contract
     user: ec_user
     region: singapore
-    # Free plan: 90 хоног, 1GB storage, 256MB RAM — diploma demo-д хангалттай.
-    # Production-д шилжихдээ plan: starter ($7/mo) болгож upgrade хийнэ.
+
     postgresMajorVersion: "16"

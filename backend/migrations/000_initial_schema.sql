@@ -588,12 +588,9 @@ CREATE INDEX idx_visits_date      ON public_visits(visited_at DESC);
 CREATE INDEX idx_visits_path_date ON public_visits(path, visited_at DESC);
 CREATE INDEX idx_visits_session   ON public_visits(session_hash, visited_at DESC);
 
-
--- ══════════════════════════════════════════════════════════════════
 -- 7. БИЗНЕС ЛОГИКИЙН TRIGGER-УУД
--- ══════════════════════════════════════════════════════════════════
 
--- ── 7.1 Гарын үсэг зурахад participant.status шинэчлэх ───────────
+
 CREATE OR REPLACE FUNCTION on_signature_added()
 RETURNS TRIGGER AS $$
 BEGIN

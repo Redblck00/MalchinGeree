@@ -265,9 +265,19 @@ const getContractById = async (req, res) => {
       }
     }
 
-    // contract_versions — ганц row (Migration 007)
+    // ── Үлдсэн уншилтуудыг зэрэг (parallel) гүйцэтгэх ──
+    // Дөрвүүлээ хоорондоо хамааралгүй бөгөөд бүгд дээрх auto-fill-ийн
+    // (updateVersionRender) ДАРАА уншигдах ёстой тул энд нэг Promise.all-аар
+    // нэгтгэв. 4 round-trip → 1 болж latency буурна.
+    const [versionRow, participants, signatures, attachments] = await Promise.all([
+      repo.findVersionFull(id),        // contract_versions — ганц row (Migration 007)
+      repo.findParticipantsDetailed(id), // profile_image_url + үнэлгээний дундаж/тоо
+      repo.findSignatures(id),           // гарын үсгүүд
+      repo.findAttachments(id),          // хавсралт материал
+    ])
+
     // Version байхгүй бол (DRAFT) preview render хийнэ
-    let latestVersion = await repo.findVersionFull(id) || null
+    let latestVersion = versionRow || null
     if (!latestVersion && contract.template_content) {
       const { rendered } = renderPreview(
         contract.template_content,
@@ -309,13 +319,6 @@ const getContractById = async (req, res) => {
         console.error('QR backfill failed:', err.message)
       }
     }
-    // Оролцогчид — profile_image_url + үнэлгээний дундаж/тоо хамт
-    const participants = await repo.findParticipantsDetailed(id)
-    // Гарын үсгүүд
-    const signatures = await repo.findSignatures(id)
-
-    // Хавсралт материал
-    const attachments = await repo.findAttachments(id)
     // ── Display зориулалтаар гарын үсэгтэй дахин рендер ──
     // schema-д signature key-уудыг нэмж, filled_data-д <img> blob нэмнэ
     if (contract.template_content && signatures.length > 0) {
