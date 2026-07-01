@@ -18,8 +18,11 @@ const pool = { query: (text, params) => query(text, params) }
 // ── Templates ─────────────────────────────────────────
 
 const findActiveTemplates = async (exec = pool) => {
+  // schema_json (хүнд JSONB) энд ЗОРИУДААР ОРООГҮЙ — жагсаалтын карт зөвхөн
+  // name/description/is_standard-г үзүүлдэг. Талбарын бүтэц (schema_json) нь
+  // template сонгож форм үүсгэх үед findTemplateById-аар тусдаа татагдана.
   const r = await exec.query(
-    `SELECT template_id, name, description, is_standard, is_offline_enabled, schema_json, created_at
+    `SELECT template_id, name, description, is_standard, is_offline_enabled, created_at
        FROM contract_templates
       WHERE is_active = true
       ORDER BY is_standard DESC, created_at DESC`

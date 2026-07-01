@@ -17,8 +17,11 @@ router.post('/visit', (req, res) => {
 // Бүх идэвхтэй гэрээний загварыг (нэвтрээгүй ч) харах
 router.get('/templates', async (req, res) => {
   try {
+    // schema_json (хүнд JSONB) хасав — public жагсаалтын карт зөвхөн
+    // name/description/is_standard-г үзүүлдэг. Дэлгэрэнгүй (schema_json) нь
+    // /public/templates/:id-аар preview нээхэд тусдаа татагдана.
     const result = await query(
-      `SELECT template_id, name, description, schema_json,
+      `SELECT template_id, name, description,
               is_standard, created_at
        FROM contract_templates
        WHERE is_active = true
