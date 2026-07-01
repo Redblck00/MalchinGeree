@@ -5,7 +5,23 @@ const { generateOtp, saveOtp, verifyOtp,
         findPendingByPhone }                          = require('../utils/otp')
 const { sendOtpEmail }                                = require('../utils/email')
 const { log, LOG }                                    = require('../utils/logger')
-const { safeErrorMessage }                            = require('../utils/errors')
+const { safeErrorMessage, AppError }                  = require('../utils/errors')
+const { generateRefreshToken, hashRefreshToken }      = require('../utils/refreshToken')
+
+// ── Access (JWT) + rotating refresh token хосыг олгож refresh token-ийг
+//    hash хэлбэрээр DB-д хадгална. login ба verify-otp хоёулаа ашиглана.
+const issueTokens = async (user, req) => {
+  const token = signToken({ user_id: user.user_id, user_type: user.user_type })
+  const { token: refreshToken, tokenHash, expiresAt } = generateRefreshToken()
+  await repo.insertRefreshToken({
+    userId:    user.user_id,
+    tokenHash,
+    expiresAt,
+    userAgent: req?.headers?.['user-agent'] || null,
+    ipAddress: req?.ip || null,
+  })
+  return { token, refreshToken }
+}
 
 //  POST /api/auth/register
 const register = async (req, res) => {
@@ -91,10 +107,11 @@ const verifyOtpHandler = async (req, res) => {
 
     await log({ action: LOG.REGISTER, entity_type: 'user', entity_id: user.user_id, req })
 
-    const token = signToken({ user_id: user.user_id, user_type: user.user_type })
+    const { token, refreshToken } = await issueTokens(user, req)
     res.json({
       message: 'Бүртгэл амжилттай баталгаажлаа',
       token,
+      refresh_token: refreshToken,
       user,
       linked_invitations: linkedCount,  // хэдэн гэрээнд оролцогч болсныг харуулна
     })
@@ -133,11 +150,11 @@ const login = async (req, res) => {
       await repo.linkInvitationsOnLogin(user.user_id, user.email)
     }
 
-    const token = signToken({ user_id: user.user_id, user_type: user.user_type })
     const { password_hash, ...safeUser } = user
 
     await log({ user_id: user.user_id, action: LOG.LOGIN, req })
-    res.json({ message: 'Амжилттай нэвтэрлээ', token, user: safeUser })
+    const { token, refreshToken } = await issueTokens(user, req)
+    res.json({ message: 'Амжилттай нэвтэрлээ', token, refresh_token: refreshToken, user: safeUser })
   } catch (err) {
     console.error(err)
     res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
@@ -174,4 +191,58 @@ const resendOtp = async (req, res) => {
   }
 }
 
-module.exports = { register, verifyOtp: verifyOtpHandler, login, resendOtp }
+// ── POST /api/auth/refresh ────────────────────────────
+// Body: { refresh_token }
+// Rotating refresh: хуучин refresh token-ийг цуцалж, шинэ access + refresh
+// хосыг олгоно. Цуцлагдсан токен дахин ирвэл (reuse) бүх сессийг цуцална.
+const refresh = async (req, res) => {
+  try {
+    const { refresh_token } = req.body
+    if (!refresh_token) throw AppError.badRequest('refresh_token шаардлагатай')
+
+    const row = await repo.findRefreshTokenByHash(hashRefreshToken(refresh_token))
+    if (!row) throw AppError.unauthorized('Refresh token хүчингүй')
+
+    // Reuse detection — аль хэдийн цуцлагдсан токен дахин ашиглагдвал
+    // халдлагын шинж тэмдэг → тухайн хэрэглэгчийн БҮХ сессийг цуцлана.
+    if (row.revoked_at) {
+      await repo.revokeAllUserRefreshTokens(row.user_id)
+      throw AppError.unauthorized('Refresh token дахин ашиглагдсан — бүх сесс цуцлагдлаа')
+    }
+    if (new Date(row.expires_at) < new Date()) {
+      throw AppError.unauthorized('Refresh token-ийн хугацаа дууссан')
+    }
+    if (row.status === 'SUSPENDED' || row.status === 'DELETED') {
+      throw AppError.forbidden('Бүртгэл идэвхгүй байна')
+    }
+
+    // Rotation — хуучныг цуцалж шинийг олгоно
+    await repo.revokeRefreshToken(row.token_id)
+    const { token, refreshToken } = await issueTokens(
+      { user_id: row.user_id, user_type: row.user_type }, req
+    )
+    res.json({ token, refresh_token: refreshToken })
+  } catch (err) {
+    console.error(err)
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
+  }
+}
+
+// ── POST /api/auth/logout ─────────────────────────────
+// Body: { refresh_token } — тухайн refresh token-ийг цуцална (access token нь
+// богино хугацаанд өөрөө хүчингүй болно). refresh_token байхгүй ч 200 буцаана.
+const logout = async (req, res) => {
+  try {
+    const { refresh_token } = req.body
+    if (refresh_token) {
+      const row = await repo.findRefreshTokenByHash(hashRefreshToken(refresh_token))
+      if (row && !row.revoked_at) await repo.revokeRefreshToken(row.token_id)
+    }
+    res.json({ message: 'Амжилттай гарлаа' })
+  } catch (err) {
+    console.error(err)
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
+  }
+}
+
+module.exports = { register, verifyOtp: verifyOtpHandler, login, resendOtp, refresh, logout }

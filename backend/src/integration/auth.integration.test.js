@@ -113,6 +113,7 @@ describe('Auth integration tests (route + controller)', () => {
         ],
       })
       .mockResolvedValueOnce({ rowCount: 1, rows: [] })
+      .mockResolvedValueOnce({ rows: [{ token_id: 'rt-1' }] })  // insertRefreshToken
     mockFindPendingByPhone.mockResolvedValueOnce({ email: 'user@mail.com' })
     mockVerifyOtp.mockResolvedValueOnce({
       valid: true,
@@ -163,6 +164,7 @@ describe('Auth integration tests (route + controller)', () => {
       })
       .mockResolvedValueOnce({})
       .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ rows: [{ token_id: 'rt-1' }] })  // insertRefreshToken
     mockBcryptCompare.mockResolvedValueOnce(true)
     mockSignToken.mockReturnValueOnce('jwt-token')
     mockLog.mockResolvedValueOnce()

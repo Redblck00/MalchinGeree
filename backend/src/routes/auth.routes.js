@@ -22,4 +22,14 @@ router.post('/login',      loginIpLimiter, loginLimiter, auth.login)
 // Body: { phone }
 router.post('/resend-otp', resendLimiter,     auth.resendOtp)
 
+// POST /api/auth/refresh
+// Body: { refresh_token }
+// → Хуучин refresh-ийг цуцалж шинэ { token, refresh_token } буцаана (rotation)
+router.post('/refresh',    auth.refresh)
+
+// POST /api/auth/logout
+// Body: { refresh_token }
+// → Тухайн refresh token-ийг цуцална
+router.post('/logout',     auth.logout)
+
 module.exports = router

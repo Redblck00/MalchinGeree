@@ -168,7 +168,6 @@ export default function ProfilePage() {
               height={260}
               style={{ width: 'auto', height: 'auto' }}
               className="object-contain w-32 sm:w-44 lg:w-60"
-              priority
             />
           </div>
         </div>

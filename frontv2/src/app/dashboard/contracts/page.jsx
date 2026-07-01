@@ -206,7 +206,6 @@ export default function DocumentPage() {
                 src="/illusrationBro.png"
                 alt="Illustration"
                 fill
-                priority
                 sizes="320px"
                 className="object-contain"
               />

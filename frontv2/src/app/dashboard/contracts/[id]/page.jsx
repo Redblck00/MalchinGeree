@@ -64,6 +64,9 @@ export default function ContractDetailPage() {
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
   const [cancelling,      setCancelling]      = useState(false)
 
+  // ── Mobile: гэрээ / дэлгэрэнгүй хэсгийн сэлгэлт (< lg) ──
+  const [mobilePanel, setMobilePanel] = useState('doc')
+
   useEffect(() => { restoreAuth() }, [restoreAuth])
 
   const fetchContract = useCallback(async () => {
@@ -468,6 +471,13 @@ export default function ContractDetailPage() {
     return () => observer.disconnect()
   }, [contract, zoom, pageCount])
 
+  // ── Mobile: гэрээ ачаалагдахад A4-г дэлгэцэнд автоматаар багтаана ──
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.innerWidth >= 1024) return
+    const t = setTimeout(fitToScreen, 60)
+    return () => clearTimeout(t)
+  }, [contract])
+
   // ── UI төлвүүд ────────────────────────────────────
   if (loading) {
     return (
@@ -504,9 +514,10 @@ export default function ContractDetailPage() {
     // SENT (negotiation) — side-by-side layout
     if (contract.status === 'SENT') {
       return (
-        <div className="h-screen flex bg-gray-50 overflow-hidden">
+        <div className="h-screen flex flex-col lg:flex-row bg-gray-50 overflow-hidden">
+          <MobilePanelToggle panel={mobilePanel} onChange={setMobilePanel} />
           {/* ── Center: header + live preview ── */}
-          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+          <div className={`min-w-0 flex-col overflow-hidden lg:flex lg:flex-1 ${mobilePanel === 'doc' ? 'flex flex-1' : 'hidden'}`}>
             <ContractHeader
               contract={contract}
               onEdit={() => {}}
@@ -525,7 +536,7 @@ export default function ContractDetailPage() {
             <div className="flex-1 relative overflow-hidden">
               <div
                 ref={scrollRef}
-                className="absolute inset-0 overflow-auto bg-gray-300/70 px-16 py-12"
+                className="absolute inset-0 overflow-auto bg-gray-300/70 px-3 py-4 sm:px-8 sm:py-8 lg:px-16 lg:py-12"
               >
                 <div ref={contentRef}>
                   <ContractA4Document
@@ -545,7 +556,7 @@ export default function ContractDetailPage() {
                               pointer-events-none select-none">
                 Хуудас: {currentPage}
               </div>
-              <div className="absolute bottom-6 right-6 flex items-stretch
+              <div className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 flex items-stretch
                               bg-white border border-gray-200 rounded-xl shadow-lg
                               divide-x divide-gray-100 overflow-hidden">
                 <button onClick={zoomOut} disabled={zoom <= ZOOM_LEVELS[0]}
@@ -574,7 +585,7 @@ export default function ContractDetailPage() {
           </div>
 
           {/* ── Right: ContractEditSidebar ── */}
-          <aside className="w-104 shrink-0 h-full border-l border-gray-200 print:hidden">
+          <aside className={`shrink-0 border-l border-gray-200 print:hidden overflow-hidden w-full lg:w-104 lg:h-full lg:block ${mobilePanel === 'details' ? 'flex-1' : 'hidden'}`}>
             <ContractEditSidebar
               contract={contract}
               template={template}
@@ -609,7 +620,7 @@ export default function ContractDetailPage() {
           downloadBusy={downloadBusy}
           canEdit={false}
         />
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="max-w-4xl mx-auto">
             <div className="mb-6">
               <button
@@ -666,9 +677,10 @@ export default function ContractDetailPage() {
   // ══════════════════════════════════════════════════════════════
   return (
     <div
-      className="h-screen flex bg-gray-50 overflow-hidden"
+      className="h-screen flex flex-col lg:flex-row bg-gray-50 overflow-hidden"
       style={{ viewTransitionName: 'contract-card' }}
     >
+      <MobilePanelToggle panel={mobilePanel} onChange={setMobilePanel} />
 
       {/* ── Center column: header + scrollable document ── */}
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
@@ -703,7 +715,7 @@ export default function ContractDetailPage() {
           {/* Scrollable workspace */}
           <div
             ref={scrollRef}
-            className="absolute inset-0 overflow-auto bg-gray-300/70 px-16 py-12"
+            className="absolute inset-0 overflow-auto bg-gray-300/70 px-3 py-4 sm:px-8 sm:py-8 lg:px-16 lg:py-12"
           >
             <div ref={contentRef}>
               <ContractA4Document
@@ -727,7 +739,7 @@ export default function ContractDetailPage() {
           </div>
 
           {/* ── Floating: zoom + nav toolbar (bottom-right) ── */}
-          <div className="absolute bottom-6 right-6 flex items-stretch
+          <div className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 flex items-stretch
                           bg-white border border-gray-200 rounded-xl shadow-lg
                           divide-x divide-gray-100 overflow-hidden">
             {currentPage < pageCount && (
@@ -780,7 +792,7 @@ export default function ContractDetailPage() {
 
       {/* ── Right column: ContractSidebar (sharp corners, full height) ── */}
       {/* ContractSidebar өөрөө teal→white gradient bg-аа эзэмшинэ — энд style тавихгүй */}
-      <aside className="w-96 shrink-0 h-full print:hidden">
+      <aside className={`shrink-0 print:hidden overflow-hidden w-full lg:w-96 lg:h-full lg:block ${mobilePanel === 'details' ? 'flex-1' : 'hidden'}`}>
         <ContractSidebar
           contract={contract}
           user={user}
@@ -849,6 +861,30 @@ export default function ContractDetailPage() {
         message={success}
         onClose={() => setSuccess(null)}
       />
+    </div>
+  )
+}
+
+// ── Mobile-only segmented toggle: гэрээ ↔ дэлгэрэнгүй ──────────
+// < lg дэлгэцэнд A4 гэрээ ба хажуугийн (талууд/гарын үсэг/үйлдэл) хэсгийг
+// зэрэгцүүлэхийн оронд нэг нэгээр нь сэлгэж харуулна. lg+ дээр огт харагдахгүй.
+function MobilePanelToggle({ panel, onChange }) {
+  const base =
+    'flex-1 py-2 text-sm font-medium rounded-md cursor-pointer border-0 transition-colors'
+  const on  = 'bg-white text-[#3d3a8c] shadow-sm'
+  const off = 'bg-transparent text-slate-500'
+  return (
+    // pl-16: зүүн дээд буланд Sidebar-ийн fixed hamburger (top-3 left-3, w-10)
+    // байрлах тул түүнд зай үлдээж, toggle-той нэг мөрөнд давхцалгүй харагдуулна.
+    <div className="lg:hidden flex items-center gap-1 bg-[#f3efe6] border-b border-[#ece8df] py-2 pr-1 pl-16 shrink-0 print:hidden">
+      <button onClick={() => onChange('doc')}
+              className={`${base} ${panel === 'doc' ? on : off}`}>
+        Гэрээ
+      </button>
+      <button onClick={() => onChange('details')}
+              className={`${base} ${panel === 'details' ? on : off}`}>
+        Дэлгэрэнгүй
+      </button>
     </div>
   )
 }

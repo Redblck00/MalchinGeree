@@ -141,6 +141,7 @@ describe('auth.controller mock tests', () => {
           ],
         })
         .mockResolvedValueOnce({ rowCount: 2, rows: [] })
+        .mockResolvedValueOnce({ rows: [{ token_id: 'rt-1' }] })  // insertRefreshToken
       mockFindPendingByPhone.mockResolvedValueOnce({ email: 'user@mail.com' })
       mockVerifyOtp.mockResolvedValueOnce({
         valid: true,
@@ -161,6 +162,7 @@ describe('auth.controller mock tests', () => {
         expect.objectContaining({
           message: 'Бүртгэл амжилттай баталгаажлаа',
           token: 'jwt-token',
+          refresh_token: expect.any(String),
           linked_invitations: 2,
         })
       )
@@ -212,6 +214,7 @@ describe('auth.controller mock tests', () => {
         })
         .mockResolvedValueOnce({})
         .mockResolvedValueOnce({})
+        .mockResolvedValueOnce({ rows: [{ token_id: 'rt-1' }] })  // insertRefreshToken
       mockBcryptCompare.mockResolvedValueOnce(true)
       mockSignToken.mockReturnValueOnce('jwt-token')
       mockLog.mockResolvedValueOnce()
@@ -222,6 +225,7 @@ describe('auth.controller mock tests', () => {
         expect.objectContaining({
           message: 'Амжилттай нэвтэрлээ',
           token: 'jwt-token',
+          refresh_token: expect.any(String),
         })
       )
       const payload = res.json.mock.calls[0][0]
@@ -263,6 +267,76 @@ describe('auth.controller mock tests', () => {
         { first_name: 'Bat' }
       )
       expect(res.json).toHaveBeenCalledWith({ message: 'OTP дахин илгээгдлээ' })
+    })
+  })
+
+  describe('refresh', () => {
+    it('returns 400 when refresh_token is missing', async () => {
+      const req = { body: {} }
+      const res = createRes()
+
+      await authController.refresh(req, res)
+
+      expect(res.status).toHaveBeenCalledWith(400)
+      expect(res.json).toHaveBeenCalledWith({ message: 'refresh_token шаардлагатай' })
+    })
+
+    it('rotates tokens for a valid refresh_token', async () => {
+      const req = { body: { refresh_token: 'valid-token' }, headers: {} }
+      const res = createRes()
+
+      mockQuery
+        .mockResolvedValueOnce({
+          rows: [{
+            token_id: 't-1', user_id: 'u-1',
+            expires_at: new Date(Date.now() + 60_000), revoked_at: null,
+            user_type: 'USER', status: 'ACTIVE',
+          }],
+        })                                             // findRefreshTokenByHash
+        .mockResolvedValueOnce({})                     // revokeRefreshToken (rotation)
+        .mockResolvedValueOnce({ rows: [{ token_id: 'rt-2' }] }) // insertRefreshToken
+      mockSignToken.mockReturnValueOnce('new-jwt')
+
+      await authController.refresh(req, res)
+
+      expect(mockSignToken).toHaveBeenCalledWith({ user_id: 'u-1', user_type: 'USER' })
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ token: 'new-jwt', refresh_token: expect.any(String) })
+      )
+    })
+
+    it('revokes all sessions when a revoked token is reused', async () => {
+      const req = { body: { refresh_token: 'reused-token' }, headers: {} }
+      const res = createRes()
+
+      mockQuery
+        .mockResolvedValueOnce({
+          rows: [{
+            token_id: 't-1', user_id: 'u-1',
+            expires_at: new Date(Date.now() + 60_000), revoked_at: new Date(),
+            user_type: 'USER', status: 'ACTIVE',
+          }],
+        })                          // findRefreshTokenByHash (аль хэдийн revoked)
+        .mockResolvedValueOnce({})  // revokeAllUserRefreshTokens
+
+      await authController.refresh(req, res)
+
+      expect(res.status).toHaveBeenCalledWith(401)
+    })
+  })
+
+  describe('logout', () => {
+    it('revokes the given refresh token', async () => {
+      const req = { body: { refresh_token: 'tok' } }
+      const res = createRes()
+
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ token_id: 't-1', revoked_at: null }] }) // findRefreshTokenByHash
+        .mockResolvedValueOnce({})  // revokeRefreshToken
+
+      await authController.logout(req, res)
+
+      expect(res.json).toHaveBeenCalledWith({ message: 'Амжилттай гарлаа' })
     })
   })
 })

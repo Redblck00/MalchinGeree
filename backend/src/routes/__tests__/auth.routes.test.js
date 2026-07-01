@@ -5,6 +5,8 @@ const mockRegister = jest.fn((req, res) => res.status(201).json({ ok: true, rout
 const mockVerifyOtp = jest.fn((req, res) => res.status(200).json({ ok: true, route: 'verify-otp' }))
 const mockLogin = jest.fn((req, res) => res.status(200).json({ ok: true, route: 'login' }))
 const mockResendOtp = jest.fn((req, res) => res.status(200).json({ ok: true, route: 'resend-otp' }))
+const mockRefresh = jest.fn((req, res) => res.status(200).json({ ok: true, route: 'refresh' }))
+const mockLogout = jest.fn((req, res) => res.status(200).json({ ok: true, route: 'logout' }))
 
 const mockRegisterLimiter = jest.fn((req, res, next) => next())
 const mockOtpVerifyLimiter = jest.fn((req, res, next) => next())
@@ -17,6 +19,8 @@ jest.mock('../../controllers/auth.controller', () => ({
   verifyOtp: (...args) => mockVerifyOtp(...args),
   login: (...args) => mockLogin(...args),
   resendOtp: (...args) => mockResendOtp(...args),
+  refresh: (...args) => mockRefresh(...args),
+  logout: (...args) => mockLogout(...args),
 }))
 
 jest.mock('../../middlewares/rateLimit.middleware', () => ({

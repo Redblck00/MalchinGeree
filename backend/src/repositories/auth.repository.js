@@ -104,6 +104,51 @@ const findUserStatusByPhone = async (phone, exec = pool) => {
   return r.rows[0]
 }
 
+// ── Refresh tokens ────────────────────────────────────
+
+const insertRefreshToken = async (
+  { userId, tokenHash, expiresAt, userAgent, ipAddress }, exec = pool
+) => {
+  const r = await exec.query(
+    `INSERT INTO refresh_tokens (user_id, token_hash, expires_at, user_agent, ip_address)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING token_id`,
+    [userId, tokenHash, expiresAt, userAgent || null, ipAddress || null]
+  )
+  return r.rows[0]
+}
+
+// Hash-аар токен олно — revoked/expired эсэхээс үл хамааран буцаана
+// (reuse detection-д revoked токеныг ч мэдэх шаардлагатай). users-тэй join
+// хийж эзний статусыг авна.
+const findRefreshTokenByHash = async (tokenHash, exec = pool) => {
+  const r = await exec.query(
+    `SELECT rt.token_id, rt.user_id, rt.expires_at, rt.revoked_at,
+            u.user_type, u.status
+     FROM refresh_tokens rt
+     JOIN users u ON u.user_id = rt.user_id
+     WHERE rt.token_hash = $1`,
+    [tokenHash]
+  )
+  return r.rows[0]
+}
+
+const revokeRefreshToken = async (tokenId, exec = pool) => {
+  await exec.query(
+    `UPDATE refresh_tokens SET revoked_at = NOW()
+     WHERE token_id = $1 AND revoked_at IS NULL`,
+    [tokenId]
+  )
+}
+
+const revokeAllUserRefreshTokens = async (userId, exec = pool) => {
+  await exec.query(
+    `UPDATE refresh_tokens SET revoked_at = NOW()
+     WHERE user_id = $1 AND revoked_at IS NULL`,
+    [userId]
+  )
+}
+
 module.exports = {
   // register
   findUserByEmailOrPhone,
@@ -113,4 +158,7 @@ module.exports = {
   findUserForLogin, markLastLogin, linkInvitationsOnLogin,
   // resend OTP
   findUserStatusByPhone,
+  // refresh tokens
+  insertRefreshToken, findRefreshTokenByHash,
+  revokeRefreshToken, revokeAllUserRefreshTokens,
 }

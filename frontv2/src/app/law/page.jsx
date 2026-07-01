@@ -1,58 +1,66 @@
 'use client'
-import Link from 'next/link'
-import { FiBookOpen, FiArrowLeft } from 'react-icons/fi'
+import { useState } from 'react'
+import Footer from '@/components/layout/Footer'
+import LawHero from '@/components/law/LawHero'
+import CategoryTabs from '@/components/law/CategoryTabs'
+import PostCard from '@/components/law/PostCard'
+import LegalSources from '@/components/law/LegalSources'
+import LawCta from '@/components/law/LawCta'
+import { CATEGORIES, POSTS } from '@/components/law/lawData'
 
-// ── Хууль — vlog хуудас (дараа хөгжүүлэх) ─────────────
-// Энэ хуудас одоогоор placeholder. Малчны хууль эрх зүйн боловсрол
-// олгох video/vlog контент дараа нэмэгдэнэ.
+// ── Хуулийн булан — малчдад зориулсан эрх зүйн влог / нийтлэл ──
+// Бүх хэсэг нь components/law/-д тусдаа компонент. Энэ хуудас зөвхөн
+// шүүлтүүрийн төлөв удирдаж, компонентуудыг угсарна.
 export default function LawPage() {
+  const [active, setActive] = useState('Бүгд')
+
+  const filtered =
+    active === 'Бүгд' ? POSTS : POSTS.filter((p) => p.category === active)
+  const featured = filtered.find((p) => p.featured) || filtered[0] || null
+  const rest = filtered.filter((p) => p !== featured)
+
   return (
-    <div className="min-h-screen pt-16 bg-linear-to-br from-emerald-50 via-white to-emerald-50/40
-                    flex items-center justify-center px-6 py-16">
-      <div className="relative max-w-lg w-full">
-        {/* Decorative blobs */}
-        <div className="absolute -top-12 -left-12 w-40 h-40 rounded-full bg-emerald-200/40 blur-2xl pointer-events-none" />
-        <div className="absolute -bottom-16 -right-12 w-48 h-48 rounded-full bg-emerald-300/30 blur-3xl pointer-events-none" />
+    <div className="flex flex-col min-h-screen font-serif bg-white">
+      <LawHero />
+      <CategoryTabs categories={CATEGORIES} active={active} onChange={setActive} />
 
-        <div className="relative bg-white rounded-3xl shadow-xl border border-emerald-100/60
-                        p-10 text-center">
-          {/* Icon */}
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-linear-to-br from-emerald-400 to-emerald-600
-                          flex items-center justify-center mb-6 shadow-lg">
-            <FiBookOpen size={28} className="text-white" />
+      <main className="flex-1 bg-gray-50">
+        <div className="max-w-6xl mx-auto px-5 sm:px-6 py-10 sm:py-14">
+          {featured ? (
+            <>
+              <PostCard post={featured} featured />
+
+              {rest.length > 0 && (
+                <>
+                  <div className="flex items-baseline justify-between mt-12 sm:mt-16 mb-6">
+                    <h2 className="text-xl sm:text-2xl font-extrabold text-gray-900 m-0">
+                      Бүх нийтлэл
+                    </h2>
+                    <span className="text-sm text-gray-500">{filtered.length} материал</span>
+                  </div>
+                  <div className="grid gap-5 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                    {rest.map((post, i) => (
+                      <PostCard key={post.id} post={post} delay={i * 70} />
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            <div className="border border-gray-200 bg-white p-12 sm:p-16 text-center">
+              <p className="text-gray-500 m-0">Энэ ангилалд одоогоор материал алга байна.</p>
+            </div>
+          )}
+
+          <LegalSources />
+
+          <div className="mt-16 sm:mt-20">
+            <LawCta />
           </div>
-
-          {/* Badge */}
-          <span className="inline-block mb-4 px-3 py-1 rounded-full
-                           bg-emerald-50 border border-emerald-200
-                           text-emerald-700 text-[10px] font-semibold tracking-widest uppercase">
-            Тун удахгүй
-          </span>
-
-          {/* Title */}
-          <h1 className="text-3xl font-extrabold text-gray-900 m-0 mb-3 leading-tight">
-            Хуулийн булан
-          </h1>
-
-          {/* Description */}
-          <p className="text-sm text-gray-600 leading-relaxed m-0 mb-8">
-            Малчдын эрх ашиг, гэрээний хууль эрх зүй, харилцагч талуудын
-            үүрэг хариуцлагын тухай видео хичээл, нийтлэлүүд эндээс үзэх
-            боломжтой болно. Бид одоо контент бэлдэж байна.
-          </p>
-
-          {/* Back action */}
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 px-5 py-2.5
-                       bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold
-                       rounded-xl transition-colors"
-          >
-            <FiArrowLeft size={16} />
-            Нүүр хуудас
-          </Link>
         </div>
-      </div>
+      </main>
+
+      <Footer />
     </div>
   )
 }

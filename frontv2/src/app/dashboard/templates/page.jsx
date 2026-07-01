@@ -152,7 +152,6 @@ export default function DashboardTemplatesPage() {
                   src="/illusrationBro.png"
                   alt="Illustration"
                   fill
-                  priority
                   sizes="(max-width: 768px) 144px, (max-width: 1024px) 176px, 224px"
                   className="object-contain"
                 />
