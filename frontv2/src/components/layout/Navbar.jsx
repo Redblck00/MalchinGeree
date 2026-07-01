@@ -125,7 +125,7 @@ export default function Navbar() {
       <header
         className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${headerBg}`}
       >
-        <div className="max-w-7xl mx-auto h-16 flex items-center justify-between gap-3 px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto h-16 flex items-center justify-between gap-3 px-4 sm:px-6 font-serif">
 
           {/* ── ЗҮҮН: Лого pill ──────────────────────────── */}
           <Link
@@ -149,16 +149,16 @@ export default function Navbar() {
           </Link>
 
           {/* ── ДУНД: Nav линкүүд (md+) — pill background-гүй ── */}
-          <nav className="hidden md:flex items-center gap-0.5 px-1.5 py-1 rounded-full transition-all">
+          <nav className="hidden md:flex items-center gap-0.5 px-1.5 py-1 rounded-full transition-all font-serif">
             {navLinks.map((link) => {
               const active = isActive(link.href)
               const linkClass = active
                 ? transparent
-                  ? 'bg-white/30 text-white'
-                  : 'bg-emerald-50 text-emerald-700'
+                  ? ' text-white hover:text-emerald-300'
+                  : ' text-emerald-700'
                 : transparent
-                  ? 'text-white/90 '
-                  : 'text-gray-700 '
+                  ? 'text-white/90 hover:text-white'
+                  : 'text-gray-700 hover:text-gray-900'
               return (
                 <Link
                   key={link.href}
@@ -173,7 +173,7 @@ export default function Navbar() {
           </nav>
 
           {/* ── БАРУУН: Profile / Login pill + Mobile burger ── */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 font-serif">
             {/* Desktop: profile / login */}
             <div className="hidden md:flex items-center gap-2">
               {isAuthenticated ? (
@@ -247,11 +247,11 @@ export default function Navbar() {
               ) : (
                 <Link
                   href="/login"
-                  className={`inline-flex items-center px-5 py-2 rounded-full text-sm font-semibold
+                  className={`inline-flex items-center px-5 py-2  text-sm font-serif 
                               transition-all
                               ${transparent
-                                ? 'bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white/30'
-                                : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm'}`}
+                                ? ''
+                                : ' text-gray-700 '}`}
                 >
                   Нэвтрэх
                 </Link>
