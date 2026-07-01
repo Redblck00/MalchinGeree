@@ -71,7 +71,7 @@ const uploadAttachment = async (req, res) => {
     if (req.file?.filename) {
       await deleteFromCloudinary(req.file.filename, resourceTypeFor(req.file.mimetype))
     }
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -109,7 +109,7 @@ const deleteAttachment = async (req, res) => {
     res.json({ message: 'Хавсралт устгагдлаа' })
   } catch (err) {
     console.error('deleteAttachment:', err)
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 

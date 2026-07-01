@@ -40,7 +40,7 @@ const register = async (req, res) => {
     res.status(201).json({ message: 'OTP имейл рүү илгээгдлээ', phone })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -100,7 +100,7 @@ const verifyOtpHandler = async (req, res) => {
     })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -140,7 +140,7 @@ const login = async (req, res) => {
     res.json({ message: 'Амжилттай нэвтэрлээ', token, user: safeUser })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -170,7 +170,7 @@ const resendOtp = async (req, res) => {
     res.json({ message: 'OTP дахин илгээгдлээ' })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 

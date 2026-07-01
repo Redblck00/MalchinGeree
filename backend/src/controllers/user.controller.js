@@ -9,7 +9,7 @@ const getProfile = async (req, res) => {
     const profile = await repo.findUserProfile(req.user.user_id)
     res.json({ data: profile })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -32,7 +32,7 @@ const updateProfile = async (req, res) => {
     if (err.code === '23505') {  // unique violation
       return res.status(409).json({ message: 'Уг утасны дугаар аль хэдийн бүртгэгдсэн' })
     }
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -65,7 +65,7 @@ const getRatings = async (req, res) => {
     })
   } catch (err) {
     console.error('getRatings:', err)
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -76,7 +76,7 @@ const deleteAccount = async (req, res) => {
     await repo.softDeleteUser(req.user.user_id)
     res.json({ message: 'Бүртгэл устгагдлаа' })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -106,7 +106,7 @@ const uploadProfileImage = async (req, res) => {
     if (req.file?.filename) {
       await deleteFromCloudinary(req.file.filename, 'image')
     }
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -119,7 +119,7 @@ const getPastCounterparties = async (req, res) => {
     const rows = await repo.findPastCounterparties(req.user.user_id, q)
     res.json({ data: rows })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -134,7 +134,7 @@ const searchByPhone = async (req, res) => {
     if (!user) return res.status(404).json({ message: 'Хэрэглэгч олдсонгүй' })
     res.json({ data: user })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -145,7 +145,7 @@ const getSignatures = async (req, res) => {
     const rows = await repo.findUserSignatures(req.user.user_id)
     res.json({ data: rows })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -170,7 +170,7 @@ const saveSignature = async (req, res) => {
     })
     res.status(201).json({ data: signature })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -184,7 +184,7 @@ const setDefaultSignature = async (req, res) => {
     if (!signature) return res.status(404).json({ message: 'Гарын үсэг олдсонгүй' })
     res.json({ data: signature })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -195,7 +195,7 @@ const deleteSignature = async (req, res) => {
     if (!deleted) return res.status(404).json({ message: 'Гарын үсэг олдсонгүй' })
     res.json({ message: 'Гарын үсэг устгагдлаа' })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -206,7 +206,7 @@ const getNotifications = async (req, res) => {
     const unread = rows.filter(n => !n.is_read).length
     res.json({ data: rows, unread })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -216,7 +216,7 @@ const markNotificationRead = async (req, res) => {
     await repo.markNotificationRead(req.params.id, req.user.user_id)
     res.json({ message: 'Уншсан гэж тэмдэглэгдлээ' })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -226,7 +226,7 @@ const markAllNotificationsRead = async (req, res) => {
     await repo.markAllNotificationsRead(req.user.user_id)
     res.json({ message: 'Бүгд уншсан гэж тэмдэглэгдлээ' })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -281,7 +281,7 @@ const getLivestockStats = async (req, res) => {
     })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -298,7 +298,7 @@ const getTopRatedUsers = async (req, res) => {
     res.json({ data: rows })
   } catch (err) {
     console.error('getTopRatedUsers:', err)
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 

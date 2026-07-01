@@ -7,7 +7,7 @@
 const repo                 = require('../repositories/contract.repository')
 const { log }              = require('../utils/logger')
 const { notify }           = require('../utils/notifier')
-const { safeErrorMessage } = require('../utils/errors')
+const { safeErrorMessage, AppError } = require('../utils/errors')
 
 // ══════════════════════════════════════════════════════
 // ҮНЭЛГЭЭ ӨГӨХ (UPSERT — засаж болно)
@@ -19,23 +19,23 @@ const submitRating = async (req, res) => {
     const { id } = req.params
     const { rated_user_id, rating, comment } = req.body
 
-    if (!rated_user_id) return res.status(400).json({ message: 'rated_user_id шаардлагатай' })
+    if (!rated_user_id) throw AppError.badRequest('rated_user_id шаардлагатай')
     const star = parseInt(rating, 10)
     if (isNaN(star) || star < 1 || star > 5) {
-      return res.status(400).json({ message: 'Үнэлгээ 1-5 хооронд байх ёстой' })
+      throw AppError.badRequest('Үнэлгээ 1-5 хооронд байх ёстой')
     }
     if (rated_user_id === req.user.user_id) {
-      return res.status(400).json({ message: 'Өөрийгөө үнэлж болохгүй' })
+      throw AppError.badRequest('Өөрийгөө үнэлж болохгүй')
     }
 
     // Гэрээ CLOSED, rater болон rated_user хоёулаа оролцогч мөн эсэх
     const chk = await repo.findRatingEligibility(id, req.user.user_id, rated_user_id)
-    if (!chk) return res.status(404).json({ message: 'Гэрээ олдсонгүй' })
+    if (!chk) throw AppError.notFound('Гэрээ олдсонгүй')
     if (chk.status !== 'CLOSED') {
-      return res.status(400).json({ message: 'Зөвхөн хаагдсан гэрээнд үнэлгээ өгөх боломжтой' })
+      throw AppError.badRequest('Зөвхөн хаагдсан гэрээнд үнэлгээ өгөх боломжтой')
     }
-    if (!chk.rater_in)  return res.status(403).json({ message: 'Энэ гэрээний оролцогч биш' })
-    if (!chk.rated_in)  return res.status(400).json({ message: 'Үнэлэгдэх хүн энэ гэрээнд оролцоогүй' })
+    if (!chk.rater_in) throw AppError.forbidden('Энэ гэрээний оролцогч биш')
+    if (!chk.rated_in) throw AppError.badRequest('Үнэлэгдэх хүн энэ гэрээнд оролцоогүй')
 
     // UPSERT — дахин засаж болно
     const ratingRow = await repo.upsertRating({
@@ -62,7 +62,7 @@ const submitRating = async (req, res) => {
     res.json({ message: 'Үнэлгээ хадгалагдлаа', data: ratingRow })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -76,13 +76,13 @@ const getContractRatings = async (req, res) => {
 
     // Оролцогч мөн эсэх
     if (!(await repo.isParticipant(id, req.user.user_id))) {
-      return res.status(403).json({ message: 'Харах эрх байхгүй' })
+      throw AppError.forbidden('Харах эрх байхгүй')
     }
 
     const rows = await repo.findContractRatings(id)
     res.json({ data: rows })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 

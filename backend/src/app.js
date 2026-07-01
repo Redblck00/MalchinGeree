@@ -4,6 +4,7 @@ const cors    = require('cors')
 const helmet  = require('helmet')
 const path    = require('path')
 const { pool }        = require('./config/db')
+const { AppError }    = require('./utils/errors')
 const { apiLimiter }  = require('./middlewares/rateLimit.middleware')
 const { trackPublicVisit } = require('./middlewares/visitor.middleware')
 
@@ -26,19 +27,17 @@ app.use(express.json({ limit: '10mb' }))
 // FRONTEND_URL нь comma-аар тусгаарласан олон origin байж болно
 // (production + preview deployment + localhost зэрэг).
 // Wildcard `*` дэмжинэ — Vercel preview-ийн hash-тай URL-уудтай тааруулна.
-//   Жишээ: https://herds-contract-*-redblck00s-projects.vercel.app
-// `*` нь "." -ээс бусад тэмдэгтийг таарна (subdomain leak хориглох).
 const allowedOriginPatterns = (process.env.FRONTEND_URL || 'http://localhost:3000')
   .split(',')
-  .map((s) => s.trim().replace(/\/$/, ''))   // trailing "/" арилгана
+  .map((s) => s.trim().replace(/\/$/, ''))   
   .filter(Boolean)
   .map((pat) => {
-    if (!pat.includes('*')) return pat        // яг таарах URL
+    if (!pat.includes('*')) return pat        
     const regex = new RegExp(
       '^' +
         pat
-          .replace(/[.+?^${}()|[\]\\]/g, '\\$&')  // regex meta-char escape
-          .replace(/\*/g, '[^.]*') +              // * → "." -ээс бусад
+          .replace(/[.+?^${}()|[\]\\]/g, '\\$&')  
+          .replace(/\*/g, '[^.]*') +              
         '$',
     )
     return regex
@@ -51,10 +50,10 @@ const isAllowedOrigin = (origin) =>
 
 app.use(cors({
   origin: (origin, cb) => {
-    // Server-to-server, curl, Postman бүгд origin-гүй
     if (!origin) return cb(null, true)
     if (isAllowedOrigin(origin)) return cb(null, true)
-    cb(new Error('CORS блок: ' + origin))
+    // Зөвшөөрөгдөөгүй origin — серверийн алдаа биш, харин 403 Forbidden
+    cb(AppError.forbidden('CORS: зөвшөөрөгдөөгүй origin'))
   },
   credentials: true,
   methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
@@ -100,9 +99,19 @@ app.get('/health', apiLimiter, async (req, res) => {
 app.use((req, res) => res.status(404).json({ message: 'Хуудас олдсонгүй' }))
 
 // ── Error handler ──────────────────────────────────────
+// Controller-ууд өөрсдөө try/catch хийдэг тул энэ нь middleware-ээс (CORS,
+// body-parser) эсвэл гэнэтийн propagate болсон алдааг барих сүүлчийн давхарга.
+//   • Хариу аль хэдийн эхэлсэн бол Express-ийн default handler-т шилжүүлнэ.
+//   • AppError (operational) → түүний statusCode + мессеж.
+//   • Гэнэтийн алдаа → 500 + generic мессеж (дотоод мэдээлэл leak-гүй).
 app.use((err, req, res, next) => {
-  console.error('Алдаа:', err.message)
-  res.status(500).json({ message: 'Серверт алдаа гарлаа' })
+  if (res.headersSent) return next(err)
+
+  const status  = err.statusCode || 500
+  const message = err.isOperational ? err.message : 'Серверт алдаа гарлаа'
+
+  if (status >= 500) console.error('Алдаа:', err.message)
+  res.status(status).json({ message })
 })
 
 // ── Start ──────────────────────────────────────────────

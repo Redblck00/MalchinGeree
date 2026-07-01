@@ -9,7 +9,7 @@ const getTemplates = async (req, res) => {
     const rows = await repo.findAllTemplates()
     res.json({ data: rows })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -19,7 +19,7 @@ const getTemplateById = async (req, res) => {
     if (!template) return res.status(404).json({ message: 'Загвар олдсонгүй' })
     res.json({ data: template })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -60,7 +60,7 @@ const createTemplate = async (req, res) => {
 
     res.status(201).json({ message: 'Загвар амжилттай үүслээ', data: template })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -80,7 +80,7 @@ const updateTemplate = async (req, res) => {
     if (!template) return res.status(404).json({ message: 'Загвар олдсонгүй' })
     res.json({ data: template })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -89,7 +89,7 @@ const deleteTemplate = async (req, res) => {
     await repo.deleteTemplateById(req.params.id)
     res.json({ message: 'Загвар устгагдлаа' })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -100,7 +100,7 @@ const getUsers = async (req, res) => {
     const rows = await repo.findAllUsers()
     res.json({ data: rows })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -113,7 +113,7 @@ const updateUserStatus = async (req, res) => {
     if (!updated) return res.status(404).json({ message: 'Хэрэглэгч олдсонгүй' })
     res.json({ data: updated })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -128,7 +128,7 @@ const updateContractStatus = async (req, res) => {
     if (!updated) return res.status(404).json({ message: 'Гэрээ олдсонгүй' })
     res.json({ data: updated })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -137,7 +137,7 @@ const getContracts = async (req, res) => {
     const rows = await repo.findAllContracts()
     res.json({ data: rows })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -158,7 +158,7 @@ const getStats = async (req, res) => {
       },
     })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -190,7 +190,7 @@ const getVisitReport = async (req, res) => {
       },
     })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -203,7 +203,7 @@ const getLogs = async (req, res) => {
     const rows = await repo.findSystemLogs(limit, offset)
     res.json({ data: rows })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 

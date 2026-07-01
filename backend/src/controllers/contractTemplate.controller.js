@@ -14,7 +14,7 @@ const getTemplates = async (req, res) => {
     const rows = await repo.findActiveTemplates()
     res.json({ data: rows })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -24,7 +24,7 @@ const getTemplateById = async (req, res) => {
     if (!template) return res.status(404).json({ message: 'Загвар олдсонгүй' })
     res.json({ data: template })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 

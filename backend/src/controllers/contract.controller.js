@@ -163,7 +163,7 @@ const createContract = async (req, res) => {
     })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -174,7 +174,7 @@ const getMyContracts = async (req, res) => {
     const rows = await repo.findContractsForUser(req.user.user_id)
     res.json({ data: rows })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -376,7 +376,7 @@ const getContractById = async (req, res) => {
       },
     })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 const updateContract = async (req, res) => {
@@ -470,7 +470,7 @@ const updateContract = async (req, res) => {
     })
   } catch (err) {
     console.error('updateContract error:', err)
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 const sendContract = async (req, res) => {
@@ -581,7 +581,7 @@ const sendContract = async (req, res) => {
     await log({ user_id: req.user.user_id, action: LOG.CONTRACT_SEND, entity_type: 'contract', entity_id: id, req })
     res.json({ message: 'Гэрээ илгээгдлээ', data: { participants: added } })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -629,7 +629,7 @@ const requestSignOtp = async (req, res) => {
     res.json({ message: 'OTP код имэйл рүү илгээгдлээ', email_masked: maskEmail(req.user.email) })
   } catch (err) {
     console.error('requestSignOtp:', err)
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 //email link useg
@@ -756,7 +756,7 @@ const signContract = async (req, res) => {
       },
     })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -868,7 +868,7 @@ const confirmContract = async (req, res) => {
 
     res.json({ message: 'Гэрээ баталгаажлаа' })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -969,7 +969,7 @@ const fillCounterpartyData = async (req, res) => {
     })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -1113,7 +1113,7 @@ const returnContract = async (req, res) => {
     })
   } catch (err) {
     console.error('returnContract error:', err)
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -1184,7 +1184,7 @@ const verifyInviteToken = async (req, res) => {
     })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -1261,7 +1261,7 @@ const cancelContract = async (req, res) => {
 
     res.json({ message: 'Гэрээ цуцлагдлаа' })
   } catch (err) {
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -1308,7 +1308,7 @@ const closeContract = async (req, res) => {
     res.json({ message: 'Гэрээ хаагдлаа' })
   } catch (err) {
     console.error(err)
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
@@ -1329,7 +1329,7 @@ const getEditLog = async (req, res) => {
     res.json({ data: rows })
   } catch (err) {
     console.error('getEditLog error:', err)
-    res.status(400).json({ message: safeErrorMessage(err) })
+    res.status(err.statusCode || 500).json({ message: safeErrorMessage(err) })
   }
 }
 
