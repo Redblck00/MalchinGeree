@@ -39,7 +39,7 @@ export default function HeroSection() {
 
         {/* Left: text + CTAs */}
         <div className="text-left flex-1">
-          <span className="inline-block mb-6 px-5 py-1.5 rounded-full
+          <span className="inline-block mb-6 px-5 py-1.5 
                            bg-white/20 backdrop-blur-sm border border-white/30
                            text-white/95 text-xs font-medium tracking-widest uppercase">
             Цахим гэрээний систем

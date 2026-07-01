@@ -123,12 +123,10 @@ export default function LoginForm({ onSuccess }) {
             />
             <span className="text-sm text-gray-700">Намайг сана</span>
           </label>
-          <Link
-            href="/forgot-password"
-            className="text-sm text-gray-700 hover:text-[#3d3a8c] no-underline"
-          >
-            Нууц үг мартсан
-          </Link>
+          {/* "Нууц үг мартсан" линк түр хасав — backend дээр нууц үг сэргээх
+              функц хараахан хийгдээгүй тул /forgot-password хуудас байхгүй
+              (Next.js Link prefetch console-д 404 өгдөг байсан). Функцийг
+              хийсний дараа буцааж нэмнэ. */}
         </div>
 
         {/* ── Нэвтрэх товч ─────────────────────────────── */}

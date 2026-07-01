@@ -108,9 +108,7 @@ export default function Navbar() {
   // ── Pill background ─────────────────────────────────
   // Transparent үед floating pill bg харагдана.
   // Scrolled үед pill bg алга — outer white-тай уусана.
-  const pillBg = transparent
-    ? 'bg-white/20 backdrop-blur-md border border-white/30'
-    : ''
+
 
   const textBase = transparent ? 'text-white' : 'text-gray-800'
 
@@ -132,8 +130,8 @@ export default function Navbar() {
           {/* ── ЗҮҮН: Лого pill ──────────────────────────── */}
           <Link
             href="/"
-            className={`inline-flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full
-                        transition-all shrink-0 ${pillBg}`}
+            className={`inline-flex items-center gap-2 pl-1.5 pr-3 py-1 
+                        transition-all shrink-0 `}
           >
             <div className="w-7 h-7 rounded-full bg-linear-to-br from-emerald-400 to-emerald-600
                             flex items-center justify-center shrink-0">
@@ -159,8 +157,8 @@ export default function Navbar() {
                   ? 'bg-white/30 text-white'
                   : 'bg-emerald-50 text-emerald-700'
                 : transparent
-                  ? 'text-white/90 hover:bg-white/15'
-                  : 'text-gray-700 hover:bg-gray-100'
+                  ? 'text-white/90 '
+                  : 'text-gray-700 '
               return (
                 <Link
                   key={link.href}
@@ -190,8 +188,8 @@ export default function Navbar() {
                       className={`flex items-center gap-2 pl-1 pr-3 py-1 rounded-full
                                   cursor-pointer border-0 transition-all
                                   ${transparent
-                                    ? 'bg-white/20 backdrop-blur-md border border-white/30 hover:bg-white/30'
-                                    : 'bg-gray-50 hover:bg-gray-100'}`}
+                                    ? ' backdrop-blur-md border border-white/30'
+                                    : ''}`}
                     >
                       <UserAvatar
                         src={user?.profile_image_url}
@@ -204,7 +202,7 @@ export default function Navbar() {
                     </button>
 
                     {menuOpen && (
-                      <div className="absolute right-0 mt-2 w-60 bg-white rounded-xl shadow-lg
+                      <div className="absolute right-0 mt-2 w-60 bg-white  shadow-lg
                                       border border-gray-100 py-2 z-50">
                         <div className="px-4 py-2.5 border-b border-gray-100">
                           <p className="text-sm font-semibold text-gray-900 m-0 truncate">{fullName}</p>

@@ -1,16 +1,5 @@
 'use client'
 
-// ══════════════════════════════════════════════════════
-// UserAvatar — хэрэглэгчийн зургийг (Cloudinary) харуулна.
-// Зураг байхгүй бол нэрний эхний үсгүүдээр emerald avatar.
-//
-// Props:
-//   src        — profile_image_url (Cloudinary бүтэн URL эсвэл relative)
-//   name       — fallback initials-д ашиглах бүтэн нэр
-//   className  — хэмжээ/текст (жишээ: "w-9 h-9 text-xs") — img + fallback хоёуланд
-//   fallbackClassName — initials дугуйн өнгө (default: emerald)
-//   alt        — img alt (default: name)
-// ══════════════════════════════════════════════════════
 
 function resolveImg(url) {
   if (!url) return null
